@@ -20,16 +20,59 @@ function makeSlug(name) {
 }
 
 export async function GET() {
-  const { data, error } = await supabase
-    .from("events")
-    .select("*")
-    .order("created_at", { ascending: false });
+  try {
+    // Get all events
+    const { data: events, error: eventsError } = await supabase
+      .from("events")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    if (eventsError) {
+      return NextResponse.json(
+        { error: eventsError.message },
+        { status: 500 }
+      );
+    }
+
+    // Get attendees only for calculating event-wise counts
+    const { data: attendees, error: attendeesError } = await supabase
+      .from("attendees")
+      .select("id, event_id, status");
+
+    if (attendeesError) {
+      return NextResponse.json(
+        { error: attendeesError.message },
+        { status: 500 }
+      );
+    }
+
+    // Add real attendance counts to every event
+    const eventsWithCounts = (events || []).map((event) => {
+      const eventAttendees = (attendees || []).filter(
+        (attendee) => attendee.event_id === event.id
+      );
+
+      const presentCount = eventAttendees.filter(
+        (attendee) => attendee.status === "present"
+      ).length;
+
+      return {
+        ...event,
+        registered_count: eventAttendees.length,
+        present_count: presentCount,
+        absent_count: eventAttendees.length - presentCount,
+      };
+    });
+
+    return NextResponse.json({
+      events: eventsWithCounts,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error.message || "Could not load events" },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({ events: data });
 }
 
 export async function POST(req) {
@@ -46,15 +89,33 @@ export async function POST(req) {
 
     const { data, error } = await supabase
       .from("events")
-      .insert([{ name: eventName, slug: makeSlug(eventName) }])
+      .insert([
+        {
+          name: eventName,
+          slug: makeSlug(eventName),
+        },
+      ])
       .select()
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json({ event: data }, { status: 201 });
+    return NextResponse.json(
+      {
+        event: {
+          ...data,
+          registered_count: 0,
+          present_count: 0,
+          absent_count: 0,
+        },
+      },
+      { status: 201 }
+    );
   } catch {
     return NextResponse.json(
       { error: "Invalid event request" },
