@@ -231,3 +231,73 @@ export async function DELETE(req) {
     );
   }
 }
+
+/* =========================
+   UPDATE EVENT (RENAME)
+========================= */
+
+export async function PATCH(req) {
+  try {
+    const { event_id, name } = await req.json();
+    const eventName = name?.trim();
+
+    if (!event_id) {
+      return NextResponse.json(
+        { error: "Event ID is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!eventName) {
+      return NextResponse.json(
+        { error: "Event name is required" },
+        { status: 400 }
+      );
+    }
+
+    const { data: existingEvent, error: findError } = await supabase
+      .from("events")
+      .select("id")
+      .eq("id", event_id)
+      .maybeSingle();
+
+    if (findError) {
+      return NextResponse.json(
+        { error: findError.message },
+        { status: 500 }
+      );
+    }
+
+    if (!existingEvent) {
+      return NextResponse.json(
+        { error: "Event not found" },
+        { status: 404 }
+      );
+    }
+
+    const { data, error } = await supabase
+      .from("events")
+      .update({ name: eventName })
+      .eq("id", event_id)
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      event: data,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: error.message || "Could not update event",
+      },
+      { status: 500 }
+    );
+  }
+}
