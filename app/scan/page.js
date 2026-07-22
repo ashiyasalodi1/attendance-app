@@ -106,3 +106,6 @@ export default function ScanPage() {
           {message}
         </span>
       )}
+    </main>
+  );
+}
