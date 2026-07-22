@@ -20,6 +20,8 @@ export default function DashboardPage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [eventSearch, setEventSearch] = useState("");
+  const [deletingEventId, setDeletingEventId] = useState(null);
 
   const selectedEvent = events.find(
     (event) => event.id === selectedEventId
@@ -222,6 +224,7 @@ export default function DashboardPage() {
   }
 
   async function deleteAttendee(attendee) {
+
     const confirmed = window.confirm(
       `Delete ${attendee.name}'s registration permanently?`
     );
@@ -268,6 +271,69 @@ export default function DashboardPage() {
     }
   }
 
+  async function deleteEvent(event) {
+    const firstConfirm = window.confirm(
+      `Delete "${event.name}"?\n\nThis will permanently delete this event and all registrations connected to it.`
+    );
+
+    if (!firstConfirm) return;
+
+    const secondConfirm = window.confirm(
+      `Final confirmation:\n\n"${event.name}" and all of its attendee data will be permanently deleted. The registration link will also stop working.\n\nContinue?`
+    );
+
+    if (!secondConfirm) return;
+
+    setDeletingEventId(event.id);
+    setError("");
+    setNotice("");
+
+    try {
+      const res = await fetch("/api/events", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          event_id: event.id,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          data.error || "Could not delete event"
+        );
+      }
+
+      const remainingEvents = events.filter(
+        (currentEvent) => currentEvent.id !== event.id
+      );
+
+      setEvents(remainingEvents);
+
+      if (selectedEventId === event.id) {
+        if (remainingEvents.length > 0) {
+          setSelectedEventId(remainingEvents[0].id);
+        } else {
+          setSelectedEventId("");
+          setAttendees([]);
+        }
+      }
+
+      setNotice(`"${event.name}" deleted successfully.`);
+
+      setTimeout(() => {
+        setNotice("");
+      }, 4000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDeletingEventId(null);
+    }
+  }
+
   function downloadReport(status) {
     if (!selectedEventId) return;
 
@@ -292,6 +358,18 @@ export default function DashboardPage() {
           : ""
       }/form/${selectedEvent.slug}`
     : "";
+
+  const filteredEvents = useMemo(() => {
+    const query = eventSearch.trim().toLowerCase();
+
+    if (!query) {
+      return events;
+    }
+
+    return events.filter((event) =>
+      event.name?.toLowerCase().includes(query)
+    );
+  }, [events, eventSearch]);
 
   const filteredAttendees = useMemo(() => {
     const query = searchQuery
@@ -354,13 +432,48 @@ export default function DashboardPage() {
       <div className="dashboard-container">
         {/* PAGE TITLE */}
 
-        <section className="dashboard-intro">
-          <h1>Event Management</h1>
+        <section
+          className="dashboard-intro"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+            gap: 20,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h1>Event Management</h1>
 
-          <p>
-            Manage registrations, check-ins and
-            reports
-          </p>
+            <p>
+              Manage registrations, check-ins and
+              reports
+            </p>
+          </div>
+
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 340,
+            }}
+          >
+            <input
+              type="search"
+              value={eventSearch}
+              onChange={(e) => setEventSearch(e.target.value)}
+              placeholder="Search events..."
+              style={{
+                width: "100%",
+                height: 44,
+                background: "#09131f",
+                border: "1px solid #334255",
+                borderRadius: 8,
+                color: "#ffffff",
+                padding: "0 15px",
+                outline: "none",
+              }}
+            />
+          </div>
         </section>
 
         {/* NOTICES */}
@@ -400,7 +513,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           <section className="events-grid">
-            {events.map((event) => {
+            {filteredEvents.map((event) => {
               const eventLink =
                 typeof window !== "undefined"
                   ? `${window.location.origin}/form/${event.slug}`
@@ -458,6 +571,32 @@ export default function DashboardPage() {
                     }}
                   >
                     Open Form ↗
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteEvent(event);
+                    }}
+                    disabled={deletingEventId === event.id}
+                    style={{
+                      width: "100%",
+                      marginTop: 10,
+                      marginBottom: 14,
+                      padding: "9px 12px",
+                      background: "rgba(255, 93, 93, 0.06)",
+                      border: "1px solid rgba(255, 93, 93, 0.45)",
+                      borderRadius: 7,
+                      color: "#ff7777",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {deletingEventId === event.id
+                      ? "Deleting Event..."
+                      : "Delete Event"}
                   </button>
 
                   <div className="event-stats">
