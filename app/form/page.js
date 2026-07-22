@@ -7,10 +7,12 @@ export default function FormPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [city, setCity] = useState("");
   const [eventName, setEventName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [result, setResult] = useState(null); // { name, id, qrDataUrl }
+  const [result, setResult] = useState(null);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -20,7 +22,7 @@ export default function FormPage() {
       const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, phone, event_name: eventName }),
+        body: JSON.stringify({ name, email, phone, whatsapp, city, event_name: eventName }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Something went wrong");
@@ -80,6 +82,14 @@ export default function FormPage() {
         <div className="field">
           <label>Phone (optional)</label>
           <input value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>WhatsApp number (optional)</label>
+          <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>City (optional)</label>
+          <input value={city} onChange={(e) => setCity(e.target.value)} />
         </div>
         <div className="field">
           <label>Event / meeting name (optional)</label>
