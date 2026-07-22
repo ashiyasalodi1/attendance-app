@@ -451,19 +451,41 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <div
+         <div
             style={{
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
               width: "100%",
-              maxWidth: 340,
+              maxWidth: 500,
             }}
           >
+            <button
+              type="button"
+              onClick={() => window.open("/scan", "_blank", "noopener,noreferrer")}
+              style={{
+                height: 44,
+                padding: "0 18px",
+                background: "transparent",
+                border: "1px solid var(--amber)",
+                borderRadius: 8,
+                color: "var(--amber)",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Scan at Door
+            </button>
+
             <input
               type="search"
               value={eventSearch}
               onChange={(e) => setEventSearch(e.target.value)}
               placeholder="Search events..."
               style={{
-                width: "100%",
+                flex: 1,
                 height: 44,
                 background: "#09131f",
                 border: "1px solid #334255",
