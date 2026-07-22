@@ -415,7 +415,7 @@ export default function DashboardPage() {
 
       <header className="dashboard-header">
         <div className="dashboard-brand">
-          ATTENDANCE HUB
+          Dawat E Islami Attendnce
         </div>
 
         <button
