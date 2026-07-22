@@ -22,7 +22,11 @@ export default function DashboardPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [eventSearch, setEventSearch] = useState("");
   const [deletingEventId, setDeletingEventId] = useState(null);
-
+const [showEditModal, setShowEditModal] = useState(false);
+const [editingEvent, setEditingEvent] = useState(null);
+const [editEventName, setEditEventName] = useState("");
+const [savingEdit, setSavingEdit] = useState(false);
+  
   const selectedEvent = events.find(
     (event) => event.id === selectedEventId
   );
@@ -272,6 +276,69 @@ export default function DashboardPage() {
   }
 
   async function deleteEvent(event) {
+function openEditModal(event) {
+  setEditingEvent(event);
+  setEditEventName(event.name);
+  setShowEditModal(true);
+}
+
+async function updateEvent(e) {
+  e.preventDefault();
+
+  setError("");
+  setNotice("");
+
+  if (!editEventName.trim()) {
+    setError("Enter an event name.");
+    return;
+  }
+
+  setSavingEdit(true);
+
+  try {
+    const res = await fetch("/api/events", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        event_id: editingEvent.id,
+        name: editEventName.trim(),
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(
+        data.error || "Could not update event"
+      );
+    }
+
+    setEvents((current) =>
+      current.map((event) =>
+        event.id === data.event.id
+          ? { ...event, name: data.event.name }
+          : event
+      )
+    );
+
+    setShowEditModal(false);
+    setEditingEvent(null);
+    setEditEventName("");
+
+    setNotice(`Event renamed to "${data.event.name}".`);
+
+    setTimeout(() => {
+      setNotice("");
+    }, 3000);
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    setSavingEdit(false);
+  }
+}
+    
     const firstConfirm = window.confirm(
       `Delete "${event.name}"?\n\nThis will permanently delete this event and all registrations connected to it.`
     );
@@ -460,24 +527,59 @@ export default function DashboardPage() {
               maxWidth: 500,
             }}
           >
-            <button
-              type="button"
-              onClick={() => window.open("/scan", "_blank", "noopener,noreferrer")}
-              style={{
-                height: 44,
-                padding: "0 18px",
-                background: "transparent",
-                border: "1px solid var(--amber)",
-                borderRadius: 8,
-                color: "var(--amber)",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              Scan at Door
-            </button>
+           <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      marginTop: 10,
+                      marginBottom: 14,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditModal(event);
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: "9px 12px",
+                        background: "rgba(255, 193, 7, 0.06)",
+                        border: "1px solid rgba(255, 193, 7, 0.45)",
+                        borderRadius: 7,
+                        color: "#ffc107",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Edit Event
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteEvent(event);
+                      }}
+                      disabled={deletingEventId === event.id}
+                      style={{
+                        flex: 1,
+                        padding: "9px 12px",
+                        background: "rgba(255, 93, 93, 0.06)",
+                        border: "1px solid rgba(255, 93, 93, 0.45)",
+                        borderRadius: 7,
+                        color: "#ff7777",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {deletingEventId === event.id
+                        ? "Deleting Event..."
+                        : "Delete Event"}
+                    </button>
+                  </div>
 
             <input
               type="search"
@@ -939,62 +1041,57 @@ export default function DashboardPage() {
 
       {/* CREATE EVENT MODAL */}
 
-      {showCreateModal && (
+      {/* EDIT EVENT MODAL */}
+
+      {showEditModal && editingEvent && (
         <div
           className="modal-overlay"
-          onClick={() =>
-            setShowCreateModal(false)
-          }
+          onClick={() => {
+            setShowEditModal(false);
+            setEditingEvent(null);
+          }}
         >
           <div
             className="create-event-modal"
-            onClick={(e) =>
-              e.stopPropagation()
-            }
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-heading-row">
               <div>
-                <div className="eyebrow">
-                  New Event
-                </div>
-
-                <h2>Create Event</h2>
+                <div className="eyebrow">Edit Event</div>
+                <h2>Rename Event</h2>
               </div>
 
               <button
                 className="modal-close"
-                onClick={() =>
-                  setShowCreateModal(false)
-                }
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingEvent(null);
+                }}
               >
                 ×
               </button>
             </div>
 
-            <form onSubmit={createEvent}>
+            <form onSubmit={updateEvent}>
               <div className="dashboard-field">
                 <label>Event Name</label>
 
                 <input
                   autoFocus
-                  value={newEventName}
+                  value={editEventName}
                   onChange={(e) =>
-                    setNewEventName(
-                      e.target.value
-                    )
+                    setEditEventName(e.target.value)
                   }
-                  placeholder="Example: Tosi Birthday Party"
+                  placeholder="Example: Manisha Birthday"
                   required
                 />
               </div>
 
               <button
                 className="modal-create-button"
-                disabled={creatingEvent}
+                disabled={savingEdit}
               >
-                {creatingEvent
-                  ? "Creating Event..."
-                  : "Create Event"}
+                {savingEdit ? "Saving..." : "Save Changes"}
               </button>
             </form>
           </div>
