@@ -13,22 +13,27 @@ export async function POST(req) {
     const body = await req.json();
 
     const name = body.name?.trim();
-    const email = body.email?.trim().toLowerCase();
-    const phone = body.phone?.trim();
     const whatsapp = body.whatsapp?.trim();
     const city = body.city?.trim();
-    const event_name = body.event_name?.trim();
 
-    if (!name || !email || !phone || !whatsapp || !city || !event_name) {
+    if (!name) {
+      return NextResponse.json({ error: "Full name is required" }, { status: 400 });
+    }
+
+    if (!whatsapp) {
       return NextResponse.json(
-        { error: "Please fill all required fields" },
+        { error: "WhatsApp number is required" },
         { status: 400 }
       );
     }
 
+    if (!city) {
+      return NextResponse.json({ error: "City is required" }, { status: 400 });
+    }
+
     const { data, error } = await supabase
       .from("attendees")
-      .insert([{ name, email, phone, whatsapp, city, event_name }])
+      .insert([{ name, whatsapp, city }])
       .select()
       .single();
 
@@ -38,6 +43,9 @@ export async function POST(req) {
 
     return NextResponse.json({ attendee: data }, { status: 201 });
   } catch {
-    return NextResponse.json({ error: "Invalid registration request" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid registration request" },
+      { status: 400 }
+    );
   }
 }
