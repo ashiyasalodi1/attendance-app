@@ -1,43 +1,43 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 export async function POST(req) {
-  const body = await req.json();
-  const { name, email, phone, whatsapp, city, event_name } = body;
+  try {
+    const body = await req.json();
 
-  if (!name || !name.trim()) {
-    return NextResponse.json({ error: "Name is required" }, { status: 400 });
-  }
-  if (!email || !email.trim()) {
-    return NextResponse.json({ error: "Email is required" }, { status: 400 });
-  }
-  if (!phone || !phone.trim()) {
-    return NextResponse.json({ error: "Phone is required" }, { status: 400 });
-  }
-  if (!whatsapp || !whatsapp.trim()) {
-    return NextResponse.json({ error: "WhatsApp number is required" }, { status: 400 });
-  }
-  if (!city || !city.trim()) {
-    return NextResponse.json({ error: "City is required" }, { status: 400 });
-  }
-  if (!event_name || !event_name.trim()) {
-    return NextResponse.json({ error: "Event name is required" }, { status: 400 });
-  }
+    const name = body.name?.trim();
+    const email = body.email?.trim().toLowerCase();
+    const phone = body.phone?.trim();
+    const whatsapp = body.whatsapp?.trim();
+    const city = body.city?.trim();
+    const event_name = body.event_name?.trim();
 
-  const { data, error } = await supabase
-    .from("attendees")
-    .insert([{ name: name.trim(), email, phone, whatsapp, city, event_name }])
-    .select()
-    .single();
+    if (!name || !email || !phone || !whatsapp || !city || !event_name) {
+      return NextResponse.json(
+        { error: "Please fill all required fields" },
+        { status: 400 }
+      );
+    }
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const { data, error } = await supabase
+      .from("attendees")
+      .insert([{ name, email, phone, whatsapp, city, event_name }])
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ attendee: data }, { status: 201 });
+  } catch {
+    return NextResponse.json({ error: "Invalid registration request" }, { status: 400 });
   }
-
-  return NextResponse.json({ attendee: data });
 }
