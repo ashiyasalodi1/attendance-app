@@ -7,6 +7,7 @@ export default function DashboardPage() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState("");
+  const [deletingId, setDeletingId] = useState(null);
 
   async function load(isFirstLoad) {
     if (isFirstLoad) setInitialLoading(true);
@@ -33,10 +34,48 @@ export default function DashboardPage() {
 
   useEffect(() => {
     load(true);
+
     const interval = setInterval(() => load(false), 5000);
 
     return () => clearInterval(interval);
   }, []);
+
+  async function deleteAttendee(attendee) {
+    const confirmed = window.confirm(
+      `Delete ${attendee.name}'s registration permanently?`
+    );
+
+    if (!confirmed) return;
+
+    setDeletingId(attendee.id);
+    setError("");
+
+    try {
+      const res = await fetch(`/api/attendees/${attendee.id}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Could not delete attendee");
+      }
+
+      if (selected?.id === attendee.id) {
+        setSelected(null);
+      }
+
+      await load(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  function downloadReport(status) {
+    window.location.href = `/api/attendees/export?status=${status}`;
+  }
 
   const presentCount = attendees.filter((a) => a.status === "present").length;
 
@@ -48,9 +87,27 @@ export default function DashboardPage() {
         {presentCount} of {attendees.length} registered attendees have checked in.
       </p>
 
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          gap: 10,
+          flexWrap: "wrap",
+          marginBottom: 20,
+        }}
+      >
+        <button className="view-btn" onClick={() => downloadReport("present")}>
+          Download Present
+        </button>
+
+        <button className="view-btn" onClick={() => downloadReport("absent")}>
+          Download Absent
+        </button>
+      </div>
+
       {error && <p style={{ color: "#f87171", fontSize: 13 }}>{error}</p>}
 
-      <div className="card" style={{ maxWidth: 700, overflowX: "auto" }}>
+      <div className="card" style={{ maxWidth: 800, overflowX: "auto" }}>
         {initialLoading ? (
           <p style={{ color: "#9aa0b4" }}>Loading...</p>
         ) : attendees.length === 0 ? (
@@ -62,31 +119,49 @@ export default function DashboardPage() {
                 <th>Name</th>
                 <th>Status</th>
                 <th>Check-in time</th>
+                <th>Actions</th>
               </tr>
             </thead>
+
             <tbody>
               {attendees.map((a) => (
                 <tr key={a.id}>
                   <td>{a.name}</td>
+
                   <td>
-                    <div className="status-cell">
-                      <span
-                        className={
-                          "status-pill " +
-                          (a.status === "present" ? "status-present" : "status-absent")
-                        }
-                      >
-                        {a.status === "present" ? "present" : "absent"}
-                      </span>
-                      <button className="view-btn" onClick={() => setSelected(a)}>
-                        View
-                      </button>
-                    </div>
+                    <span
+                      className={
+                        "status-pill " +
+                        (a.status === "present"
+                          ? "status-present"
+                          : "status-absent")
+                      }
+                    >
+                      {a.status === "present" ? "present" : "absent"}
+                    </span>
                   </td>
+
                   <td className="mono" style={{ fontSize: 12 }}>
                     {a.attended_at
                       ? new Date(a.attended_at).toLocaleString()
                       : "—"}
+                  </td>
+
+                  <td>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button className="view-btn" onClick={() => setSelected(a)}>
+                        View
+                      </button>
+
+                      <button
+                        className="view-btn"
+                        onClick={() => deleteAttendee(a)}
+                        disabled={deletingId === a.id}
+                        style={{ color: "#f87171" }}
+                      >
+                        {deletingId === a.id ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -123,11 +198,6 @@ export default function DashboardPage() {
             </div>
 
             <div className="modal-row">
-              <span className="modal-label">Phone</span>
-              <span>{selected.phone || "—"}</span>
-            </div>
-
-            <div className="modal-row">
               <span className="modal-label">WhatsApp</span>
               <span>{selected.whatsapp || "—"}</span>
             </div>
@@ -135,11 +205,6 @@ export default function DashboardPage() {
             <div className="modal-row">
               <span className="modal-label">City</span>
               <span>{selected.city || "—"}</span>
-            </div>
-
-            <div className="modal-row">
-              <span className="modal-label">Event</span>
-              <span>{selected.event_name || "—"}</span>
             </div>
 
             <div className="modal-row">
