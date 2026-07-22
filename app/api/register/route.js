@@ -16,6 +16,7 @@ export async function POST(req) {
     const email = body.email?.trim().toLowerCase();
     const whatsapp = body.whatsapp?.replace(/\D/g, "");
     const city = body.city?.trim();
+    const eventSlug = body.event_slug?.trim();
 
     if (!name) {
       return NextResponse.json({ error: "Full name is required" }, { status: 400 });
@@ -36,9 +37,32 @@ export async function POST(req) {
       return NextResponse.json({ error: "City is required" }, { status: 400 });
     }
 
+    const { data: event, error: eventError } = await supabase
+      .from("events")
+      .select("id, name")
+      .eq("slug", eventSlug)
+      .eq("is_active", true)
+      .single();
+
+    if (eventError || !event) {
+      return NextResponse.json(
+        { error: "This event link is not available" },
+        { status: 404 }
+      );
+    }
+
     const { data, error } = await supabase
       .from("attendees")
-      .insert([{ name, email, whatsapp, city }])
+      .insert([
+        {
+          name,
+          email,
+          whatsapp,
+          city,
+          event_id: event.id,
+          status: "absent",
+        },
+      ])
       .select()
       .single();
 
