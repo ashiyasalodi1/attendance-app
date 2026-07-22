@@ -8,13 +8,14 @@ export default function EventQrPage() {
   const params = useParams();
   const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
 
+  const [event, setEvent] = useState(null);
   const [qr, setQr] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!slug) return;
 
-    async function generateQr() {
+    async function loadEventQr() {
       try {
         const response = await fetch(
           `/api/events/public?slug=${encodeURIComponent(slug)}`,
@@ -30,7 +31,7 @@ export default function EventQrPage() {
         const checkInLink = `${window.location.origin}/check-in/${slug}`;
 
         const qrImage = await QRCode.toDataURL(checkInLink, {
-          width: 900,
+          width: 700,
           margin: 1,
           color: {
             dark: "#000000",
@@ -38,46 +39,78 @@ export default function EventQrPage() {
           },
         });
 
+        setEvent(data.event);
         setQr(qrImage);
       } catch (err) {
         setError(err.message);
       }
     }
 
-    generateQr();
+    loadEventQr();
   }, [slug]);
 
   if (error) {
     return (
-      <main style={{ padding: 24, fontFamily: "Arial", color: "#111" }}>
-        QR unavailable: {error}
+      <main className="page">
+        <h1 className="title">QR unavailable</h1>
+        <p className="subtitle">{error}</p>
       </main>
     );
   }
 
+  if (!event || !qr) {
+    return (
+      <main className="page">
+        <p className="subtitle">Generating event QR...</p>
+      </main>
+    );
+  }
+
+  const fileName = `${event.name
+    .replace(/[^a-z0-9]+/gi, "-")
+    .toLowerCase()}-attendance-qr.png`;
+
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        margin: 0,
-        padding: 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#ffffff",
-      }}
-    >
-      {qr && (
+    <main className="page">
+      <div className="eyebrow">Venue Check-in QR</div>
+
+      <h1 className="title">{event.name}</h1>
+
+      <p className="subtitle">
+        Scan this QR to mark your attendance.
+      </p>
+
+      <div style={{ margin: "26px 0 22px" }}>
         <img
           src={qr}
-          alt="Event attendance QR code"
+          alt={`Attendance QR for ${event.name}`}
           style={{
-            width: "min(82vw, 650px)",
+            width: "min(78vw, 360px)",
             height: "auto",
             display: "block",
+            margin: "0 auto",
+            background: "transparent",
+            border: "none",
+            borderRadius: 0,
+            padding: 0,
           }}
         />
-      )}
+      </div>
+
+      <a
+        href={qr}
+        download={fileName}
+        className="btn"
+        style={{
+          display: "block",
+          width: "220px",
+          margin: "0 auto",
+          textAlign: "center",
+          textDecoration: "none",
+        }}
+      >
+        Download QR Code
+      </a>
     </main>
   );
 }
