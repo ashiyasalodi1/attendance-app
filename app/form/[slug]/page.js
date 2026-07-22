@@ -17,9 +17,9 @@ export default function EventFormPage() {
   const [event, setEvent] = useState(null);
   const [eventLoading, setEventLoading] = useState(true);
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [Eploy Code, setEmployCode] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
-  const [city, setCity] = useState("");
+  const [Division, setDivision] = useState("");
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState("");
   const [photoError, setPhotoError] = useState("");
@@ -82,12 +82,7 @@ export default function EventFormPage() {
       return;
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
-      setError("Enter a valid email address.");
-      return;
-    }
-
-    setLoading(true);
+        setLoading(true);
 
     try {
       let photoUrl = "";
@@ -113,9 +108,9 @@ export default function EventFormPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          email,
+          Employcode,
           whatsapp,
-          city,
+          Division,
           photo_url: photoUrl,
           event_slug: eventSlug,
         }),
@@ -218,12 +213,12 @@ export default function EventFormPage() {
         </div>
 
         <div className="field">
-          <label>Email address</label>
+          <label>EmployCode address</label>
           <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="name@gmail.com"
+            type="Employ Code"
+            value={Employ Code}
+            onChange={(e) => setEmploycode(e.target.value)}
+            placeholder="Employ Code"
             required
           />
         </div>
@@ -246,7 +241,7 @@ export default function EventFormPage() {
 
         <div className="field">
           <label>Division</label>
-          <input value={city} onChange={(e) => setCity(e.target.value)} required />
+          <input value={Division} onChange={(e) => setDivision(e.target.value)} required />
         </div>
 
         <div className="field">
