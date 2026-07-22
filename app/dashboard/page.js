@@ -527,10 +527,9 @@ export default function DashboardPage() {
 
         const searchableText = [
           attendee.name,
-          attendee.email,
-          attendee.phone,
+          attendee.employee_code,
           attendee.whatsapp,
-          attendee.city,
+          attendee.division,
         ]
           .filter(Boolean)
           .join(" ")
@@ -746,6 +745,26 @@ export default function DashboardPage() {
                       marginBottom: 14,
                     }}
                   >
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(`/event-qr/${event.slug}`, "_blank", "noopener,noreferrer");
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: "9px 12px",
+                        background: "transparent",
+                        border: "1px solid #5a9bd5",
+                        borderRadius: 7,
+                        color: "#9ed0ff",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Event QR / Print
+                    </button>
                     <button
                       type="button"
                       onClick={(e) => {
@@ -967,7 +986,7 @@ export default function DashboardPage() {
                         e.target.value
                       )
                     }
-                    placeholder="Search by name, city or WhatsApp..."
+                    placeholder="Search by name, employee code, division or WhatsApp..."
                   />
                 </div>
 
@@ -1018,7 +1037,7 @@ export default function DashboardPage() {
                     <tr>
                       <th>Name</th>
                       <th>WhatsApp</th>
-                      <th>City</th>
+                      <th>Division</th>
                       <th>Status</th>
                       <th>Check-in time</th>
                       <th>Actions</th>
@@ -1063,7 +1082,7 @@ export default function DashboardPage() {
                           </td>
 
                           <td>
-                            {attendee.city || "—"}
+                            {attendee.division || "—"}
                           </td>
 
                           <td>
@@ -1400,21 +1419,11 @@ export default function DashboardPage() {
 
             <div className="modal-row">
               <span className="modal-label">
-                Email
+                Employee code
               </span>
 
               <span>
-                {selected.email || "—"}
-              </span>
-            </div>
-
-            <div className="modal-row">
-              <span className="modal-label">
-                Phone
-              </span>
-
-              <span>
-                {selected.phone || "—"}
+                {selected.employee_code || "—"}
               </span>
             </div>
 
@@ -1434,7 +1443,7 @@ export default function DashboardPage() {
               </span>
 
               <span>
-                {selected.city || "—"}
+                {selected.division || "—"}
               </span>
             </div>
 

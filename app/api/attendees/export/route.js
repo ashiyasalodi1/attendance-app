@@ -4,8 +4,8 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || "placeholder"
 );
 
 function csvValue(value) {
@@ -46,12 +46,12 @@ export async function GET(req) {
   }
 
   const rows = [
-    ["Name", "Email", "WhatsApp Number", "City", "Status", "Registered At", "Checked In At"],
+    ["Name", "Employee Code", "WhatsApp Number", "Division", "Status", "Registered At", "Checked In At"],
     ...(data || []).map((attendee) => [
       attendee.name,
-      attendee.email,
+      attendee.employee_code,
       attendee.whatsapp,
-      attendee.city,
+      attendee.division,
       attendee.status,
       attendee.created_at
         ? new Date(attendee.created_at).toLocaleString()

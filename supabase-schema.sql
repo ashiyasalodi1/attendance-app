@@ -1,28 +1,53 @@
--- Run this once in Supabase SQL Editor (Project -> SQL Editor -> New Query)
+-- Run this in the Supabase SQL editor before deploying the app.
+-- It is safe for both a new project and the earlier single-event version.
+
+create extension if not exists pgcrypto;
+
+create table if not exists events (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text not null unique,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
 
 create table if not exists attendees (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  email text,
-  phone text,
-  event_name text,
-  created_at timestamptz default now(),
-  attended_at timestamptz,
-  status text default 'registered'
+  employee_code text,
+  whatsapp text,
+  division text,
+  photo_url text,
+  event_id uuid references events(id) on delete cascade,
+  status text not null default 'absent' check (status in ('absent', 'present')),
+  created_at timestamptz not null default now(),
+  attended_at timestamptz
 );
 
--- Allow the app (using the anon key) to read/write.
--- Fine for a small internal tool with a private link; do not expose the QR/link publicly.
+-- Upgrade columns from the old schema if they already exist.
+alter table attendees add column if not exists employee_code text;
+alter table attendees add column if not exists whatsapp text;
+alter table attendees add column if not exists division text;
+alter table attendees add column if not exists photo_url text;
+alter table attendees add column if not exists event_id uuid references events(id) on delete cascade;
+alter table attendees add column if not exists attended_at timestamptz;
+update attendees set status = 'absent' where status is null or status not in ('absent', 'present');
+alter table attendees alter column status set default 'absent';
+
+create index if not exists attendees_event_id_idx on attendees(event_id);
+create index if not exists events_slug_idx on events(slug);
+
+-- Browser clients never query these tables directly. All database access goes
+-- through server routes using SUPABASE_SERVICE_ROLE_KEY.
+alter table events enable row level security;
 alter table attendees enable row level security;
 
-create policy "Allow public insert" on attendees
-  for insert to anon
-  with check (true);
+-- The photo bucket is intentionally public so dashboard/pass images can render.
+insert into storage.buckets (id, name, public)
+values ('attendee-photos', 'attendee-photos', true)
+on conflict (id) do update set public = true;
 
-create policy "Allow public select" on attendees
-  for select to anon
-  using (true);
-
-create policy "Allow public update" on attendees
-  for update to anon
-  using (true);
+drop policy if exists "Public can upload attendee photos" on storage.objects;
+create policy "Public can upload attendee photos"
+  on storage.objects for insert to anon
+  with check (bucket_id = 'attendee-photos');
