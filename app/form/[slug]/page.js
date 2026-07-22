@@ -67,7 +67,7 @@ export default function EventFormPage() {
           name,
           email,
           whatsapp,
-          Division,
+          city,
           event_slug: eventSlug,
         }),
       });
@@ -179,7 +179,7 @@ export default function EventFormPage() {
         </div>
 
         <div className="field">
-          <label>City</label>
+          <label>Division</label>
           <input value={city} onChange={(e) => setCity(e.target.value)} required />
         </div>
 
