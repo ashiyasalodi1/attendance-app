@@ -114,7 +114,6 @@ h1, h2, h3 {
 .btn:hover { filter: brightness(1.06); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* Badge / ticket-stub — the signature element */
 .badge {
   background: var(--ivory);
   color: var(--ink);
@@ -239,6 +238,7 @@ td {
   width: 100%;
   max-width: 340px;
 }
+
 .view-btn {
   background: transparent;
   border: 1px solid var(--panel-edge);
@@ -298,5 +298,4 @@ td {
   flex-shrink: 0;
   margin-right: 16px;
   display: inline-block;
-}flex-shrink: 0;
 }
