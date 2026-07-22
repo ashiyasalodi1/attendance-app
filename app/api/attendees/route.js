@@ -9,11 +9,20 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-export async function GET() {
-  const { data, error } = await supabase
+export async function GET(req) {
+  const { searchParams } = new URL(req.url);
+  const eventId = searchParams.get("event_id");
+
+  let query = supabase
     .from("attendees")
     .select("*")
     .order("created_at", { ascending: false });
+
+  if (eventId) {
+    query = query.eq("event_id", eventId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
