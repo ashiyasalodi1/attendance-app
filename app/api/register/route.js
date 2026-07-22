@@ -13,16 +13,21 @@ export async function POST(req) {
     const body = await req.json();
 
     const name = body.name?.trim();
-    const whatsapp = body.whatsapp?.trim();
+    const email = body.email?.trim().toLowerCase();
+    const whatsapp = body.whatsapp?.replace(/\D/g, "");
     const city = body.city?.trim();
 
     if (!name) {
       return NextResponse.json({ error: "Full name is required" }, { status: 400 });
     }
 
-    if (!whatsapp) {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
+    }
+
+    if (!whatsapp || !/^[6-9]\d{9}$/.test(whatsapp)) {
       return NextResponse.json(
-        { error: "WhatsApp number is required" },
+        { error: "Enter a valid 10-digit WhatsApp number" },
         { status: 400 }
       );
     }
@@ -33,7 +38,7 @@ export async function POST(req) {
 
     const { data, error } = await supabase
       .from("attendees")
-      .insert([{ name, whatsapp, city }])
+      .insert([{ name, email, whatsapp, city }])
       .select()
       .single();
 
