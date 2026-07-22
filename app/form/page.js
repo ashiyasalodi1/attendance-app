@@ -76,24 +76,24 @@ export default function FormPage() {
           <input value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
         <div className="field">
-          <label>Email (optional)</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <label>Email</label>
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </div>
         <div className="field">
-          <label>Phone (optional)</label>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <label>Phone</label>
+          <input value={phone} onChange={(e) => setPhone(e.target.value)} required />
         </div>
         <div className="field">
-          <label>WhatsApp number (optional)</label>
-          <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
+          <label>WhatsApp number</label>
+          <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} required />
         </div>
         <div className="field">
-          <label>City (optional)</label>
-          <input value={city} onChange={(e) => setCity(e.target.value)} />
+          <label>City</label>
+          <input value={city} onChange={(e) => setCity(e.target.value)} required />
         </div>
         <div className="field">
-          <label>Event / meeting name (optional)</label>
-          <input value={eventName} onChange={(e) => setEventName(e.target.value)} />
+          <label>Event / meeting name</label>
+          <input value={eventName} onChange={(e) => setEventName(e.target.value)} required />
         </div>
         {error && <p style={{ color: "#f87171", fontSize: 13 }}>{error}</p>}
         <button className="btn" disabled={loading}>
