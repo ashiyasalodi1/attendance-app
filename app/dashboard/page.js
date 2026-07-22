@@ -275,131 +275,34 @@ const [savingEdit, setSavingEdit] = useState(false);
     }
   }
 
-  async function deleteEvent(event) {
-function openEditModal(event) {
-  setEditingEvent(event);
-  setEditEventName(event.name);
-  setShowEditModal(true);
-}
+  <div
+  style={{
+    display: "flex",
+    gap: 8,
+    marginTop: 10,
+    marginBottom: 14,
+  }}
+>
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation();
+      openEditModal(event);
+    }}
+  >
+    Edit Event
+  </button>
 
-async function updateEvent(e) {
-  e.preventDefault();
-
-  setError("");
-  setNotice("");
-
-  if (!editEventName.trim()) {
-    setError("Enter an event name.");
-    return;
-  }
-
-  setSavingEdit(true);
-
-  try {
-    const res = await fetch("/api/events", {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        event_id: editingEvent.id,
-        name: editEventName.trim(),
-      }),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(
-        data.error || "Could not update event"
-      );
-    }
-
-    setEvents((current) =>
-      current.map((event) =>
-        event.id === data.event.id
-          ? { ...event, name: data.event.name }
-          : event
-      )
-    );
-
-    setShowEditModal(false);
-    setEditingEvent(null);
-    setEditEventName("");
-
-    setNotice(`Event renamed to "${data.event.name}".`);
-
-    setTimeout(() => {
-      setNotice("");
-    }, 3000);
-  } catch (err) {
-    setError(err.message);
-  } finally {
-    setSavingEdit(false);
-  }
-}
-    
-    const firstConfirm = window.confirm(
-      `Delete "${event.name}"?\n\nThis will permanently delete this event and all registrations connected to it.`
-    );
-
-    if (!firstConfirm) return;
-
-    const secondConfirm = window.confirm(
-      `Final confirmation:\n\n"${event.name}" and all of its attendee data will be permanently deleted. The registration link will also stop working.\n\nContinue?`
-    );
-
-    if (!secondConfirm) return;
-
-    setDeletingEventId(event.id);
-    setError("");
-    setNotice("");
-
-    try {
-      const res = await fetch("/api/events", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          event_id: event.id,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(
-          data.error || "Could not delete event"
-        );
-      }
-
-      const remainingEvents = events.filter(
-        (currentEvent) => currentEvent.id !== event.id
-      );
-
-      setEvents(remainingEvents);
-
-      if (selectedEventId === event.id) {
-        if (remainingEvents.length > 0) {
-          setSelectedEventId(remainingEvents[0].id);
-        } else {
-          setSelectedEventId("");
-          setAttendees([]);
-        }
-      }
-
-      setNotice(`"${event.name}" deleted successfully.`);
-
-      setTimeout(() => {
-        setNotice("");
-      }, 4000);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setDeletingEventId(null);
-    }
-  }
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation();
+      deleteEvent(event);
+    }}
+  >
+    Delete Event
+  </button>
+</div>
 
   function downloadReport(status) {
     if (!selectedEventId) return;
