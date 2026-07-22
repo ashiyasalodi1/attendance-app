@@ -21,6 +21,11 @@ function csvValue(value) {
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
+  const eventId = searchParams.get("event_id");
+
+  if (!eventId) {
+    return NextResponse.json({ error: "Event is required" }, { status: 400 });
+  }
 
   if (status !== "present" && status !== "absent") {
     return NextResponse.json(
@@ -32,6 +37,7 @@ export async function GET(req) {
   const { data, error } = await supabase
     .from("attendees")
     .select("*")
+    .eq("event_id", eventId)
     .eq("status", status)
     .order("created_at", { ascending: false });
 
@@ -40,15 +46,7 @@ export async function GET(req) {
   }
 
   const rows = [
-    [
-      "Name",
-      "Email",
-      "WhatsApp Number",
-      "City",
-      "Status",
-      "Registered At",
-      "Checked In At",
-    ],
+    ["Name", "Email", "WhatsApp Number", "City", "Status", "Registered At", "Checked In At"],
     ...(data || []).map((attendee) => [
       attendee.name,
       attendee.email,
@@ -65,12 +63,11 @@ export async function GET(req) {
   ];
 
   const csv = rows.map((row) => row.map(csvValue).join(",")).join("\n");
-  const fileName = `${status}-attendees.csv`;
 
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${fileName}"`,
+      "Content-Disposition": `attachment; filename="${status}-attendees.csv"`,
       "Cache-Control": "no-store",
     },
   });
