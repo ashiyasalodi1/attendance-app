@@ -190,6 +190,17 @@ table {
   font-size: 14px;
 }
 
+.status-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+
+td, th {
+  white-space: nowrap;
+}
+
 th {
   text-align: left;
   font-family: 'IBM Plex Mono', monospace;
