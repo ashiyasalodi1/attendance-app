@@ -8,7 +8,7 @@ const supabase = createClient(
 
 export async function POST(req) {
   const body = await req.json();
-  const { name, email, phone, event_name } = body;
+  const { name, email, phone, whatsapp, city, event_name } = body;
 
   if (!name || !name.trim()) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -16,7 +16,7 @@ export async function POST(req) {
 
   const { data, error } = await supabase
     .from("attendees")
-    .insert([{ name: name.trim(), email, phone, event_name }])
+    .insert([{ name: name.trim(), email, phone, whatsapp, city, event_name }])
     .select()
     .single();
 
