@@ -5,6 +5,7 @@ import QRCode from "qrcode";
 
 export default function FormPage() {
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [city, setCity] = useState("");
   const [loading, setLoading] = useState(false);
@@ -14,13 +15,24 @@ export default function FormPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+
+    if (!/^[6-9]\d{9}$/.test(whatsapp)) {
+      setError("Enter a valid 10-digit WhatsApp number.");
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      setError("Enter a valid email address.");
+      return;
+    }
+
     setLoading(true);
 
     try {
       const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, whatsapp, city }),
+        body: JSON.stringify({ name, email, whatsapp, city }),
       });
 
       const data = await res.json();
@@ -89,12 +101,28 @@ export default function FormPage() {
         </div>
 
         <div className="field">
+          <label>Email address</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="name@gmail.com"
+            required
+          />
+        </div>
+
+        <div className="field">
           <label>WhatsApp number</label>
           <input
             type="tel"
-            inputMode="tel"
+            inputMode="numeric"
             value={whatsapp}
-            onChange={(e) => setWhatsapp(e.target.value)}
+            onChange={(e) =>
+              setWhatsapp(e.target.value.replace(/\D/g, "").slice(0, 10))
+            }
+            placeholder="10-digit mobile number"
+            pattern="[6-9][0-9]{9}"
+            maxLength={10}
             required
           />
         </div>
