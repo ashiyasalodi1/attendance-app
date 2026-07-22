@@ -101,10 +101,8 @@ export default function ScanPage() {
               ? "status-registered"
               : "status-error")
           }
+          style={{ fontSize: 16 }}
         >
           {message}
         </span>
       )}
-    </main>
-  );
-}
