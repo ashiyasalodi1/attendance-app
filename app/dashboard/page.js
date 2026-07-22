@@ -1,31 +1,59 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export default function DashboardPage() {
   const [events, setEvents] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState("");
   const [attendees, setAttendees] = useState([]);
+
   const [newEventName, setNewEventName] = useState("");
   const [creatingEvent, setCreatingEvent] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
   const [initialLoading, setInitialLoading] = useState(true);
   const [selected, setSelected] = useState(null);
+
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [deletingId, setDeletingId] = useState(null);
 
-  const selectedEvent = events.find((event) => event.id === selectedEventId);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
-  async function loadEvents() {
-    const res = await fetch("/api/events", { cache: "no-store" });
+  const selectedEvent = events.find(
+    (event) => event.id === selectedEventId
+  );
+
+  async function loadEvents(selectFirst = false) {
+    const res = await fetch(`/api/events?time=${Date.now()}`, {
+      cache: "no-store",
+    });
+
     const data = await res.json();
 
-    if (!res.ok) throw new Error(data.error || "Could not load events");
+    if (!res.ok) {
+      throw new Error(data.error || "Could not load events");
+    }
 
-    setEvents(data.events || []);
+    const loadedEvents = data.events || [];
 
-    if (!selectedEventId && data.events?.length) {
-      setSelectedEventId(data.events[0].id);
+    setEvents(loadedEvents);
+
+    if (
+      (selectFirst || !selectedEventId) &&
+      loadedEvents.length > 0
+    ) {
+      setSelectedEventId((current) => {
+        if (
+          current &&
+          loadedEvents.some((event) => event.id === current)
+        ) {
+          return current;
+        }
+
+        return loadedEvents[0].id;
+      });
     }
   }
 
@@ -36,28 +64,40 @@ export default function DashboardPage() {
       return;
     }
 
-    if (isFirstLoad) setInitialLoading(true);
+    if (isFirstLoad) {
+      setInitialLoading(true);
+    }
 
     try {
       const res = await fetch(
-        `/api/attendees?event_id=${encodeURIComponent(selectedEventId)}&time=${Date.now()}`,
-        { cache: "no-store" }
+        `/api/attendees?event_id=${encodeURIComponent(
+          selectedEventId
+        )}&time=${Date.now()}`,
+        {
+          cache: "no-store",
+        }
       );
 
       const data = await res.json();
 
-      if (!res.ok) throw new Error(data.error || "Could not load attendees");
+      if (!res.ok) {
+        throw new Error(
+          data.error || "Could not load attendees"
+        );
+      }
 
       setAttendees(data.attendees || []);
     } catch (err) {
       setError(err.message);
     } finally {
-      if (isFirstLoad) setInitialLoading(false);
+      if (isFirstLoad) {
+        setInitialLoading(false);
+      }
     }
   }
 
   useEffect(() => {
-    loadEvents()
+    loadEvents(true)
       .catch((err) => setError(err.message))
       .finally(() => setInitialLoading(false));
   }, []);
@@ -65,14 +105,27 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!selectedEventId) return;
 
+    setSearchQuery("");
+    setStatusFilter("all");
+
     loadAttendees(true);
-    const interval = setInterval(() => loadAttendees(false), 5000);
+
+    const interval = setInterval(async () => {
+      await loadAttendees(false);
+
+      try {
+        await loadEvents(false);
+      } catch (err) {
+        console.error(err);
+      }
+    }, 5000);
 
     return () => clearInterval(interval);
   }, [selectedEventId]);
 
   async function createEvent(e) {
     e.preventDefault();
+
     setError("");
     setNotice("");
 
@@ -86,18 +139,36 @@ export default function DashboardPage() {
     try {
       const res = await fetch("/api/events", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newEventName }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: newEventName.trim(),
+        }),
       });
 
       const data = await res.json();
 
-      if (!res.ok) throw new Error(data.error || "Could not create event");
+      if (!res.ok) {
+        throw new Error(
+          data.error || "Could not create event"
+        );
+      }
 
-      setEvents((current) => [data.event, ...current]);
+      setEvents((current) => [
+        data.event,
+        ...current.filter(
+          (event) => event.id !== data.event.id
+        ),
+      ]);
+
       setSelectedEventId(data.event.id);
       setNewEventName("");
-      setNotice("Event created. Copy and share the registration link below.");
+      setShowCreateModal(false);
+
+      setNotice(
+        `"${data.event.name}" created successfully.`
+      );
     } catch (err) {
       setError(err.message);
     } finally {
@@ -105,38 +176,91 @@ export default function DashboardPage() {
     }
   }
 
-  async function copyLink() {
-    if (!selectedEvent) return;
+  async function copyEventLink(event) {
+    if (!event) return;
 
-    const link = `${window.location.origin}/form/${selectedEvent.slug}`;
+    const link = `${window.location.origin}/form/${event.slug}`;
 
     try {
       await navigator.clipboard.writeText(link);
-      setNotice("Registration link copied.");
+
+      setNotice(
+        `${event.name} registration link copied.`
+      );
+
+      setTimeout(() => {
+        setNotice("");
+      }, 3000);
     } catch {
-      setError("Could not copy the link. Please copy it from the address bar.");
+      setError(
+        "Could not copy the registration link."
+      );
     }
   }
 
+  function openRegistrationForm(event) {
+    if (!event) return;
+
+    window.open(
+      `/form/${event.slug}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  }
+
+  function selectEvent(eventId) {
+    setSelectedEventId(eventId);
+
+    setTimeout(() => {
+      document
+        .getElementById("event-details")
+        ?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+    }, 100);
+  }
+
   async function deleteAttendee(attendee) {
-    if (!window.confirm(`Delete ${attendee.name}'s registration permanently?`)) {
-      return;
-    }
+    const confirmed = window.confirm(
+      `Delete ${attendee.name}'s registration permanently?`
+    );
+
+    if (!confirmed) return;
 
     setDeletingId(attendee.id);
+    setError("");
 
     try {
-      const res = await fetch(`/api/attendees/${attendee.id}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        `/api/attendees/${attendee.id}`,
+        {
+          method: "DELETE",
+        }
+      );
 
       const data = await res.json();
 
-      if (!res.ok) throw new Error(data.error || "Could not delete attendee");
+      if (!res.ok) {
+        throw new Error(
+          data.error || "Could not delete attendee"
+        );
+      }
 
-      if (selected?.id === attendee.id) setSelected(null);
+      if (selected?.id === attendee.id) {
+        setSelected(null);
+      }
 
       await loadAttendees(false);
+      await loadEvents(false);
+
+      setNotice(
+        `${attendee.name}'s registration deleted.`
+      );
+
+      setTimeout(() => {
+        setNotice("");
+      }, 3000);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -149,203 +273,672 @@ export default function DashboardPage() {
 
     window.location.href =
       `/api/attendees/export?status=${status}` +
-      `&event_id=${encodeURIComponent(selectedEventId)}`;
+      `&event_id=${encodeURIComponent(
+        selectedEventId
+      )}`;
   }
 
-  const presentCount = attendees.filter((a) => a.status === "present").length;
+  const presentCount = attendees.filter(
+    (attendee) => attendee.status === "present"
+  ).length;
+
+  const absentCount =
+    attendees.length - presentCount;
+
   const registrationLink = selectedEvent
-    ? `${typeof window !== "undefined" ? window.location.origin : ""}/form/${selectedEvent.slug}`
+    ? `${
+        typeof window !== "undefined"
+          ? window.location.origin
+          : ""
+      }/form/${selectedEvent.slug}`
     : "";
 
+  const filteredAttendees = useMemo(() => {
+    const query = searchQuery
+      .trim()
+      .toLowerCase();
+
+    return attendees.filter((attendee) => {
+      const attendeeStatus =
+        attendee.status === "present"
+          ? "present"
+          : "absent";
+
+      const matchesStatus =
+        statusFilter === "all" ||
+        attendeeStatus === statusFilter;
+
+      const searchableText = [
+        attendee.name,
+        attendee.email,
+        attendee.phone,
+        attendee.whatsapp,
+        attendee.city,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const matchesSearch =
+        !query ||
+        searchableText.includes(query);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [
+    attendees,
+    searchQuery,
+    statusFilter,
+  ]);
+
   return (
-    <main className="page">
-      <div className="eyebrow">Owner View</div>
-      <h1 className="title">Attendance Dashboard</h1>
+    <main className="dashboard-page">
+      {/* HEADER */}
 
-      <form className="card" onSubmit={createEvent} style={{ maxWidth: 700, marginBottom: 20 }}>
-        <div className="field">
-          <label>Create new event</label>
-          <input
-            value={newEventName}
-            onChange={(e) => setNewEventName(e.target.value)}
-            placeholder="Example: Tosi Birthday Party"
-            required
-          />
+      <header className="dashboard-header">
+        <div className="dashboard-brand">
+          ATTENDANCE HUB
         </div>
 
-        <button className="btn" disabled={creatingEvent}>
-          {creatingEvent ? "Creating event..." : "Create event"}
+        <button
+          className="create-event-button"
+          onClick={() =>
+            setShowCreateModal(true)
+          }
+        >
+          <span className="button-plus">+</span>
+          Create Event
         </button>
-      </form>
+      </header>
 
-      {events.length > 0 && (
-        <div className="card" style={{ maxWidth: 700, marginBottom: 20 }}>
-          <div className="field">
-            <label>Select event</label>
-            <select
-              value={selectedEventId}
-              onChange={(e) => setSelectedEventId(e.target.value)}
-            >
-              {events.map((event) => (
-                <option key={event.id} value={event.id}>
-                  {event.name}
-                </option>
-              ))}
-            </select>
-          </div>
+      <div className="dashboard-container">
+        {/* PAGE TITLE */}
 
-          <div className="field">
-            <label>Registration link</label>
-            <input value={registrationLink} readOnly />
-          </div>
+        <section className="dashboard-intro">
+          <h1>Event Management</h1>
 
-          <button className="view-btn" onClick={copyLink} type="button">
-            Copy registration link
-          </button>
-        </div>
-      )}
-
-      {notice && <p style={{ color: "#4ade80", fontSize: 13 }}>{notice}</p>}
-      {error && <p style={{ color: "#f87171", fontSize: 13 }}>{error}</p>}
-
-      {selectedEvent && (
-        <>
-          <p className="subtitle">
-            {presentCount} of {attendees.length} registered attendees have checked in for{" "}
-            {selectedEvent.name}.
+          <p>
+            Manage registrations, check-ins and
+            reports
           </p>
+        </section>
 
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              gap: 10,
-              flexWrap: "wrap",
-              marginBottom: 20,
-            }}
-          >
-            <button className="view-btn" onClick={() => downloadReport("present")}>
-              Download Present
-            </button>
+        {/* NOTICES */}
 
-            <button className="view-btn" onClick={() => downloadReport("absent")}>
-              Download Absent
-            </button>
+        {notice && (
+          <div className="dashboard-notice success-notice">
+            {notice}
           </div>
+        )}
 
-          <div className="card" style={{ maxWidth: 800, overflowX: "auto" }}>
-            {initialLoading ? (
-              <p style={{ color: "#9aa0b4" }}>Loading...</p>
-            ) : attendees.length === 0 ? (
-              <p style={{ color: "#9aa0b4" }}>No one has registered for this event yet.</p>
-            ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Status</th>
-                    <th>Check-in time</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {attendees.map((a) => (
-                    <tr key={a.id}>
-                      <td>{a.name}</td>
-
-                      <td>
-                        <span
-                          className={
-                            "status-pill " +
-                            (a.status === "present"
-                              ? "status-present"
-                              : "status-absent")
-                          }
-                        >
-                          {a.status === "present" ? "present" : "absent"}
-                        </span>
-                      </td>
-
-                      <td className="mono" style={{ fontSize: 12 }}>
-                        {a.attended_at
-                          ? new Date(a.attended_at).toLocaleString()
-                          : "—"}
-                      </td>
-
-                      <td>
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <button className="view-btn" onClick={() => setSelected(a)}>
-                            View
-                          </button>
-
-                          <button
-                            className="view-btn"
-                            onClick={() => deleteAttendee(a)}
-                            disabled={deletingId === a.id}
-                            style={{ color: "#f87171" }}
-                          >
-                            {deletingId === a.id ? "Deleting..." : "Delete"}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+        {error && (
+          <div className="dashboard-notice error-notice">
+            {error}
           </div>
-        </>
-      )}
+        )}
 
-      {selected && (
-        <div className="modal-overlay" onClick={() => setSelected(null)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="eyebrow">Attendee</div>
-            <h2 className="title" style={{ fontSize: 22 }}>
-              {selected.name}
-            </h2>
+        {/* EVENTS */}
 
-            <div className="modal-row">
-              <span className="modal-label">Email</span>
-              <span>{selected.email || "—"}</span>
-            </div>
+        {events.length === 0 &&
+        !initialLoading ? (
+          <div className="empty-events">
+            <h2>No events yet</h2>
 
-            <div className="modal-row">
-              <span className="modal-label">WhatsApp</span>
-              <span>{selected.whatsapp || "—"}</span>
-            </div>
-
-            <div className="modal-row">
-              <span className="modal-label">City</span>
-              <span>{selected.city || "—"}</span>
-            </div>
-
-            <div className="modal-row">
-              <span className="modal-label">Registered at</span>
-              <span className="mono" style={{ fontSize: 12 }}>
-                {selected.created_at
-                  ? new Date(selected.created_at).toLocaleString()
-                  : "—"}
-              </span>
-            </div>
-
-            <div className="modal-row">
-              <span className="modal-label">Checked in at</span>
-              <span className="mono" style={{ fontSize: 12 }}>
-                {selected.attended_at
-                  ? new Date(selected.attended_at).toLocaleString()
-                  : "—"}
-              </span>
-            </div>
+            <p>
+              Create your first event to generate a
+              registration link.
+            </p>
 
             <button
-              className="btn"
-              style={{ marginTop: 20 }}
-              onClick={() => setSelected(null)}
+              className="create-event-button"
+              onClick={() =>
+                setShowCreateModal(true)
+              }
             >
-              Close
+              + Create Event
             </button>
+          </div>
+        ) : (
+          <section className="events-grid">
+            {events.map((event) => {
+              const eventLink =
+                typeof window !== "undefined"
+                  ? `${window.location.origin}/form/${event.slug}`
+                  : `/form/${event.slug}`;
+
+              const isActive =
+                selectedEventId === event.id;
+
+              return (
+                <article
+                  key={event.id}
+                  className={`event-card ${
+                    isActive
+                      ? "event-card-selected"
+                      : ""
+                  }`}
+                  onClick={() =>
+                    selectEvent(event.id)
+                  }
+                >
+                  <div className="event-card-top">
+                    <h2>{event.name}</h2>
+
+                    <span className="active-badge">
+                      <span className="active-dot" />
+                      Active
+                    </span>
+                  </div>
+
+                  <label className="event-label">
+                    Registration Link
+                  </label>
+
+                  <div className="event-link-row">
+                    <div className="event-link">
+                      {eventLink}
+                    </div>
+
+                    <button
+                      className="copy-link-button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyEventLink(event);
+                      }}
+                    >
+                      ⧉ Copy Link
+                    </button>
+                  </div>
+
+                  <button
+                    className="open-form-button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openRegistrationForm(event);
+                    }}
+                  >
+                    Open Form ↗
+                  </button>
+
+                  <div className="event-stats">
+                    <div className="event-stat">
+                      <div className="stat-icon registered-icon">
+                        ◎
+                      </div>
+
+                      <div>
+                        <strong>
+                          {event.registered_count ||
+                            0}
+                        </strong>
+                        <span>Registered</span>
+                      </div>
+                    </div>
+
+                    <div className="event-stat">
+                      <div className="stat-icon present-icon">
+                        ✓
+                      </div>
+
+                      <div>
+                        <strong>
+                          {event.present_count || 0}
+                        </strong>
+                        <span>Present</span>
+                      </div>
+                    </div>
+
+                    <div className="event-stat">
+                      <div className="stat-icon absent-icon">
+                        ×
+                      </div>
+
+                      <div>
+                        <strong>
+                          {event.absent_count || 0}
+                        </strong>
+                        <span>Absent</span>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </section>
+        )}
+
+        {/* SELECTED EVENT DETAILS */}
+
+        {selectedEvent && (
+          <section
+            className="event-details-panel"
+            id="event-details"
+          >
+            <div className="event-details-header">
+              <div>
+                <h2>{selectedEvent.name}</h2>
+              </div>
+
+              <div className="report-buttons">
+                <button
+                  className="report-button present-report"
+                  onClick={() =>
+                    downloadReport("present")
+                  }
+                >
+                  ↓ Download Present
+                </button>
+
+                <button
+                  className="report-button absent-report"
+                  onClick={() =>
+                    downloadReport("absent")
+                  }
+                >
+                  ↓ Download Absent
+                </button>
+              </div>
+            </div>
+
+            {/* REGISTRATION LINK */}
+
+            <div className="details-link-section">
+              <span>Registration Link</span>
+
+              <div className="details-link-box">
+                <input
+                  value={registrationLink}
+                  readOnly
+                />
+
+                <button
+                  onClick={() =>
+                    copyEventLink(selectedEvent)
+                  }
+                >
+                  ⧉
+                </button>
+              </div>
+            </div>
+
+            {/* SUMMARY + SEARCH */}
+
+            <div className="event-summary-row">
+              <div className="summary-cards">
+                <div className="summary-card">
+                  <div className="summary-icon registered-icon">
+                    ◎
+                  </div>
+
+                  <div>
+                    <strong>
+                      {attendees.length}
+                    </strong>
+                    <span>Registered</span>
+                  </div>
+                </div>
+
+                <div className="summary-card">
+                  <div className="summary-icon present-icon">
+                    ✓
+                  </div>
+
+                  <div>
+                    <strong>
+                      {presentCount}
+                    </strong>
+                    <span>Present</span>
+                  </div>
+                </div>
+
+                <div className="summary-card">
+                  <div className="summary-icon absent-icon">
+                    ×
+                  </div>
+
+                  <div>
+                    <strong>
+                      {absentCount}
+                    </strong>
+                    <span>Absent</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="table-controls">
+                <div className="search-box">
+                  <span>⌕</span>
+
+                  <input
+                    value={searchQuery}
+                    onChange={(e) =>
+                      setSearchQuery(
+                        e.target.value
+                      )
+                    }
+                    placeholder="Search by name, city or WhatsApp..."
+                  />
+                </div>
+
+                <select
+                  className="status-filter"
+                  value={statusFilter}
+                  onChange={(e) =>
+                    setStatusFilter(
+                      e.target.value
+                    )
+                  }
+                >
+                  <option value="all">
+                    All
+                  </option>
+
+                  <option value="present">
+                    Present
+                  </option>
+
+                  <option value="absent">
+                    Absent
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            {/* ATTENDEES TABLE */}
+
+            <div className="attendees-table-wrapper">
+              {initialLoading ? (
+                <div className="table-empty">
+                  Loading attendees...
+                </div>
+              ) : attendees.length === 0 ? (
+                <div className="table-empty">
+                  No one has registered for this
+                  event yet.
+                </div>
+              ) : filteredAttendees.length ===
+                0 ? (
+                <div className="table-empty">
+                  No attendees match your search.
+                </div>
+              ) : (
+                <table className="dashboard-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>WhatsApp</th>
+                      <th>City</th>
+                      <th>Status</th>
+                      <th>Check-in time</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {filteredAttendees.map(
+                      (attendee) => (
+                        <tr key={attendee.id}>
+                          <td>
+                            <div className="attendee-name">
+                              <div className="attendee-avatar">
+                                {attendee.name
+                                  ?.split(" ")
+                                  .map(
+                                    (word) =>
+                                      word[0]
+                                  )
+                                  .join("")
+                                  .slice(0, 2)
+                                  .toUpperCase()}
+                              </div>
+
+                              <span>
+                                {attendee.name}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td>
+                            {attendee.whatsapp ||
+                              "—"}
+                          </td>
+
+                          <td>
+                            {attendee.city ||
+                              "—"}
+                          </td>
+
+                          <td>
+                            <span
+                              className={`dashboard-status ${
+                                attendee.status ===
+                                "present"
+                                  ? "dashboard-present"
+                                  : "dashboard-absent"
+                              }`}
+                            >
+                              <span />
+                              {attendee.status ===
+                              "present"
+                                ? "Present"
+                                : "Absent"}
+                            </span>
+                          </td>
+
+                          <td>
+                            {attendee.attended_at
+                              ? new Date(
+                                  attendee.attended_at
+                                ).toLocaleString()
+                              : "—"}
+                          </td>
+
+                          <td>
+                            <div className="table-actions">
+                              <button
+                                className="table-view-button"
+                                onClick={() =>
+                                  setSelected(
+                                    attendee
+                                  )
+                                }
+                              >
+                                ◉ View
+                              </button>
+
+                              <button
+                                className="table-delete-button"
+                                onClick={() =>
+                                  deleteAttendee(
+                                    attendee
+                                  )
+                                }
+                                disabled={
+                                  deletingId ===
+                                  attendee.id
+                                }
+                              >
+                                {deletingId ===
+                                attendee.id
+                                  ? "Deleting..."
+                                  : "Delete"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </section>
+        )}
+      </div>
+
+      {/* CREATE EVENT MODAL */}
+
+      {showCreateModal && (
+        <div
+          className="modal-overlay"
+          onClick={() =>
+            setShowCreateModal(false)
+          }
+        >
+          <div
+            className="create-event-modal"
+            onClick={(e) =>
+              e.stopPropagation()
+            }
+          >
+            <div className="modal-heading-row">
+              <div>
+                <div className="eyebrow">
+                  New Event
+                </div>
+
+                <h2>Create Event</h2>
+              </div>
+
+              <button
+                className="modal-close"
+                onClick={() =>
+                  setShowCreateModal(false)
+                }
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={createEvent}>
+              <div className="dashboard-field">
+                <label>Event Name</label>
+
+                <input
+                  autoFocus
+                  value={newEventName}
+                  onChange={(e) =>
+                    setNewEventName(
+                      e.target.value
+                    )
+                  }
+                  placeholder="Example: Tosi Birthday Party"
+                  required
+                />
+              </div>
+
+              <button
+                className="modal-create-button"
+                disabled={creatingEvent}
+              >
+                {creatingEvent
+                  ? "Creating Event..."
+                  : "Create Event"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ATTENDEE MODAL */}
+
+      {selected && (
+        <div
+          className="modal-overlay"
+          onClick={() => setSelected(null)}
+        >
+          <div
+            className="modal-card"
+            onClick={(e) =>
+              e.stopPropagation()
+            }
+          >
+            <div className="modal-heading-row">
+              <div>
+                <div className="eyebrow">
+                  Attendee
+                </div>
+
+                <h2>{selected.name}</h2>
+              </div>
+
+              <button
+                className="modal-close"
+                onClick={() =>
+                  setSelected(null)
+                }
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="modal-row">
+              <span className="modal-label">
+                Email
+              </span>
+
+              <span>
+                {selected.email || "—"}
+              </span>
+            </div>
+
+            <div className="modal-row">
+              <span className="modal-label">
+                Phone
+              </span>
+
+              <span>
+                {selected.phone || "—"}
+              </span>
+            </div>
+
+            <div className="modal-row">
+              <span className="modal-label">
+                WhatsApp
+              </span>
+
+              <span>
+                {selected.whatsapp || "—"}
+              </span>
+            </div>
+
+            <div className="modal-row">
+              <span className="modal-label">
+                City
+              </span>
+
+              <span>
+                {selected.city || "—"}
+              </span>
+            </div>
+
+            <div className="modal-row">
+              <span className="modal-label">
+                Registered
+              </span>
+
+              <span>
+                {selected.created_at
+                  ? new Date(
+                      selected.created_at
+                    ).toLocaleString()
+                  : "—"}
+              </span>
+            </div>
+
+            <div className="modal-row">
+              <span className="modal-label">
+                Check-in
+              </span>
+
+              <span>
+                {selected.attended_at
+                  ? new Date(
+                      selected.attended_at
+                    ).toLocaleString()
+                  : "—"}
+              </span>
+            </div>
           </div>
         </div>
       )}
