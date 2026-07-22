@@ -43,7 +43,6 @@ export default function DashboardPage() {
                 <th>Name</th>
                 <th>Status</th>
                 <th>Check-in time</th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -51,22 +50,22 @@ export default function DashboardPage() {
                 <tr key={a.id}>
                   <td>{a.name}</td>
                   <td>
-                    <span
-                      className={
-                        "status-pill " +
-                        (a.status === "present" ? "status-present" : "status-absent")
-                      }
-                    >
-                      {a.status === "present" ? "present" : "absent"}
-                    </span>
+                    <div className="status-cell">
+                      <span
+                        className={
+                          "status-pill " +
+                          (a.status === "present" ? "status-present" : "status-absent")
+                        }
+                      >
+                        {a.status === "present" ? "present" : "absent"}
+                      </span>
+                      <button className="view-btn" onClick={() => setSelected(a)}>
+                        View
+                      </button>
+                    </div>
                   </td>
                   <td className="mono" style={{ fontSize: 12 }}>
                     {a.attended_at ? new Date(a.attended_at).toLocaleString() : "—"}
-                  </td>
-                  <td>
-                    <button className="view-btn" onClick={() => setSelected(a)}>
-                      View
-                    </button>
                   </td>
                 </tr>
               ))}
