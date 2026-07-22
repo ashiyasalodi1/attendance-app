@@ -592,36 +592,44 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              gap: 12,
-              alignItems: "center",
-              width: "100%",
-              maxWidth: 500,
-            }}
-          >
-            <input
-              type="search"
-              value={eventSearch}
-              onChange={(e) =>
-                setEventSearch(e.target.value)
-              }
-              placeholder="Search events..."
-              style={{
-                flex: 1,
-                height: 44,
-                background: "#09131f",
-                border: "1px solid #334255",
-                borderRadius: 8,
-                color: "#ffffff",
-                padding: "0 15px",
-                outline: "none",
-              }}
-            />
-          </div>
-        </section>
+         <div
+  style={{
+    display: "flex",
+    gap: 12,
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 500,
+  }}
+>
+  <input
+    type="search"
+    value={eventSearch}
+    onChange={(e) =>
+      setEventSearch(e.target.value)
+    }
+    placeholder="Search events..."
+    style={{
+      flex: 1,
+      height: 44,
+      background: "#09131f",
+      border: "1px solid #334255",
+      borderRadius: 8,
+      color: "#ffffff",
+      padding: "0 15px",
+      outline: "none",
+    }}
+  />
 
+  <button
+    type="button"
+    className="scan-door-button"
+    onClick={() => {
+      window.location.href = "/scan";
+    }}
+  >
+    Scan at Door
+  </button>
+</div>
         {/* NOTICES */}
 
         {notice && (
