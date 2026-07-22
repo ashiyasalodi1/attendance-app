@@ -4,13 +4,12 @@ export default function Home() {
       <div className="eyebrow">Attendance System</div>
       <h1 className="title">Meeting Check-In</h1>
       <p className="subtitle">
-        Share the registration link with attendees. Each person gets a QR
-        pass. Scan it at the door to log arrival time.
+        Register here to receive your QR pass. Show your QR pass at the door
+        to mark your arrival.
       </p>
+
       <div className="nav-links">
-        <a href="/form">Register (share this)</a>
-        <a href="/scan">Scan at door</a>
-        <a href="/dashboard">Owner dashboard</a>
+        <a href="/form">Register</a>
       </div>
     </main>
   );
