@@ -4,20 +4,20 @@ import { useEffect, useState } from "react";
 
 export default function DashboardPage() {
   const [attendees, setAttendees] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [selected, setSelected] = useState(null);
 
-  async function load() {
-    setLoading(true);
+  async function load(isFirstLoad) {
+    if (isFirstLoad) setInitialLoading(true);
     const res = await fetch("/api/attendees");
     const data = await res.json();
     setAttendees(data.attendees || []);
-    setLoading(false);
+    if (isFirstLoad) setInitialLoading(false);
   }
 
   useEffect(() => {
-    load();
-    const interval = setInterval(load, 10000);
+    load(true);
+    const interval = setInterval(() => load(false), 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -32,7 +32,7 @@ export default function DashboardPage() {
       </p>
 
       <div className="card" style={{ maxWidth: 700, overflowX: "auto" }}>
-        {loading ? (
+        {initialLoading ? (
           <p style={{ color: "#9aa0b4" }}>Loading...</p>
         ) : attendees.length === 0 ? (
           <p style={{ color: "#9aa0b4" }}>No one has registered yet.</p>
@@ -54,10 +54,10 @@ export default function DashboardPage() {
                     <span
                       className={
                         "status-pill " +
-                        (a.status === "present" ? "status-present" : "status-registered")
+                        (a.status === "present" ? "status-present" : "status-absent")
                       }
                     >
-                      {a.status}
+                      {a.status === "present" ? "present" : "absent"}
                     </span>
                   </td>
                   <td className="mono" style={{ fontSize: 12 }}>
@@ -85,10 +85,10 @@ export default function DashboardPage() {
               <span
                 className={
                   "status-pill " +
-                  (selected.status === "present" ? "status-present" : "status-registered")
+                  (selected.status === "present" ? "status-present" : "status-absent")
                 }
               >
-                {selected.status}
+                {selected.status === "present" ? "present" : "absent"}
               </span>
             </div>
             <div className="modal-row">
