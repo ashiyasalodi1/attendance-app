@@ -571,79 +571,80 @@ export default function DashboardPage() {
         </button>
       </header>
 
-      <div className="dashboard-container">
-        {/* PAGE TITLE */}
+     <div className="dashboard-container">
+  {/* PAGE TITLE */}
 
-        <section
-          className="dashboard-intro"
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
-            gap: 20,
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <h1>Event Management</h1>
-
-            <p>
-              Manage registrations, check-ins and reports
-            </p>
-          </div>
-
-         <div
-  style={{
-    display: "flex",
-    gap: 12,
-    alignItems: "center",
-    width: "100%",
-    maxWidth: 500,
-  }}
->
-  <input
-    type="search"
-    value={eventSearch}
-    onChange={(e) =>
-      setEventSearch(e.target.value)
-    }
-    placeholder="Search events..."
+  <section
+    className="dashboard-intro"
     style={{
-      flex: 1,
-      height: 44,
-      background: "#09131f",
-      border: "1px solid #334255",
-      borderRadius: 8,
-      color: "#ffffff",
-      padding: "0 15px",
-      outline: "none",
-    }}
-  />
-
-  <button
-    type="button"
-    className="scan-door-button"
-    onClick={() => {
-      window.location.href = "/scan";
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "flex-end",
+      gap: 20,
+      flexWrap: "wrap",
     }}
   >
-    Scan at Door
-  </button>
-</div>
-        {/* NOTICES */}
+    <div>
+      <h1>Event Management</h1>
 
-        {notice && (
-          <div className="dashboard-notice success-notice">
-            {notice}
-          </div>
-        )}
+      <p>
+        Manage registrations, check-ins and reports
+      </p>
+    </div>
 
-        {error && (
-          <div className="dashboard-notice error-notice">
-            {error}
-          </div>
-        )}
+    <div
+      style={{
+        display: "flex",
+        gap: 12,
+        alignItems: "center",
+        width: "100%",
+        maxWidth: 500,
+      }}
+    >
+      <input
+        type="search"
+        value={eventSearch}
+        onChange={(e) =>
+          setEventSearch(e.target.value)
+        }
+        placeholder="Search events..."
+        style={{
+          flex: 1,
+          height: 44,
+          background: "#09131f",
+          border: "1px solid #334255",
+          borderRadius: 8,
+          color: "#ffffff",
+          padding: "0 15px",
+          outline: "none",
+        }}
+      />
 
+      <button
+        type="button"
+        className="scan-door-button"
+        onClick={() => {
+          window.location.href = "/scan";
+        }}
+      >
+        Scan at Door
+      </button>
+    </div>
+  </section>
+
+  {/* NOTICES */}
+
+  {notice && (
+    <div className="dashboard-notice success-notice">
+      {notice}
+    </div>
+  )}
+
+  {error && (
+    <div className="dashboard-notice error-notice">
+      {error}
+    </div>
+  )}
         {/* EVENTS */}
 
         {events.length === 0 &&
