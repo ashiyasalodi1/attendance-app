@@ -3,6 +3,12 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import QRCode from "qrcode";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 export default function EventFormPage() {
   const params = useParams();
@@ -14,6 +20,10 @@ export default function EventFormPage() {
   const [email, setEmail] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [city, setCity] = useState("");
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState("");
+  const [photoError, setPhotoError] = useState("");
+  const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
@@ -43,6 +53,26 @@ export default function EventFormPage() {
     if (eventSlug) loadEvent();
   }, [eventSlug]);
 
+  function handlePhotoChange(e) {
+    const file = e.target.files[0];
+    setPhotoError("");
+    if (!file) {
+      setPhotoFile(null);
+      setPhotoPreview("");
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setPhotoError("Please select an image file.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setPhotoError("Image must be under 2MB.");
+      return;
+    }
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
@@ -60,6 +90,24 @@ export default function EventFormPage() {
     setLoading(true);
 
     try {
+      let photoUrl = "";
+      if (photoFile) {
+        setUploading(true);
+        const fileExt = photoFile.name.split(".").pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from("attendee-photos")
+          .upload(fileName, photoFile);
+        setUploading(false);
+        if (uploadError) {
+          throw new Error("Photo upload failed: " + uploadError.message);
+        }
+        const { data: publicUrlData } = supabase.storage
+          .from("attendee-photos")
+          .getPublicUrl(fileName);
+        photoUrl = publicUrlData.publicUrl;
+      }
+
       const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -68,6 +116,7 @@ export default function EventFormPage() {
           email,
           whatsapp,
           city,
+          photo_url: photoUrl,
           event_slug: eventSlug,
         }),
       });
@@ -88,6 +137,7 @@ export default function EventFormPage() {
         name: data.attendee.name,
         id: data.attendee.id,
         qrDataUrl,
+        photoUrl: photoUrl,
       });
     } catch (err) {
       setError(err.message);
@@ -124,6 +174,22 @@ export default function EventFormPage() {
         </p>
 
         <div className="badge">
+          {result.photoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={result.photoUrl}
+              alt={result.name}
+              style={{
+                width: 150,
+                height: 150,
+                borderRadius: "50%",
+                objectFit: "cover",
+                margin: "0 auto 14px",
+                display: "block",
+                border: "3px solid var(--ink)",
+              }}
+            />
+          )}
           <div className="badge-name">{result.name}</div>
           <div className="badge-perf" />
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -183,10 +249,30 @@ export default function EventFormPage() {
           <input value={city} onChange={(e) => setCity(e.target.value)} required />
         </div>
 
+        <div className="field">
+          <label>Your photo (max 2MB)</label>
+          <input type="file" accept="image/*" onChange={handlePhotoChange} required />
+          {photoPreview && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={photoPreview}
+              alt="Preview"
+              style={{
+                width: 100,
+                height: 100,
+                borderRadius: "50%",
+                objectFit: "cover",
+                marginTop: 10,
+              }}
+            />
+          )}
+          {photoError && <p style={{ color: "#f87171", fontSize: 12, marginTop: 6 }}>{photoError}</p>}
+        </div>
+
         {error && <p style={{ color: "#f87171", fontSize: 13 }}>{error}</p>}
 
-        <button className="btn" disabled={loading}>
-          {loading ? "Generating pass..." : "Get my QR pass"}
+        <button className="btn" disabled={loading || uploading}>
+          {uploading ? "Uploading photo..." : loading ? "Generating pass..." : "Get my QR pass"}
         </button>
       </form>
     </main>
