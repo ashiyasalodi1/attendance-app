@@ -40,7 +40,6 @@ async function hasValidOwnerSession(token) {
   if (!token || !secret) return false;
 
   const lastDot = token.lastIndexOf(".");
-
   if (lastDot === -1) return false;
 
   const payload = token.slice(0, lastDot);
@@ -51,12 +50,14 @@ async function hasValidOwnerSession(token) {
     return false;
   }
 
-  const expectedSignature = await sign(payload, secret);
-
-  return signature === expectedSignature;
+  return signature === (await sign(payload, secret));
 }
 
 export async function middleware(request) {
+  if (request.nextUrl.pathname === "/api/events/public") {
+    return NextResponse.next();
+  }
+
   const token = request.cookies.get("owner_session")?.value;
   const allowed = await hasValidOwnerSession(token);
 
@@ -84,5 +85,6 @@ export const config = {
     "/scan/:path*",
     "/api/attendees/:path*",
     "/api/mark-attendance/:path*",
+    "/api/events/:path*",
   ],
 };
