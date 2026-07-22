@@ -284,4 +284,7 @@ td {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   flex-shrink: 0;
+  margin-right: 16px;
+  display: inline-block;
+}flex-shrink: 0;
 }
