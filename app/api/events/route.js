@@ -19,9 +19,12 @@ function makeSlug(name) {
   return `${cleanName || "event"}-${randomBytes(3).toString("hex")}`;
 }
 
+/* =========================
+   GET ALL EVENTS
+========================= */
+
 export async function GET() {
   try {
-    // Get all events
     const { data: events, error: eventsError } = await supabase
       .from("events")
       .select("*")
@@ -34,7 +37,6 @@ export async function GET() {
       );
     }
 
-    // Get attendees only for calculating event-wise counts
     const { data: attendees, error: attendeesError } = await supabase
       .from("attendees")
       .select("id, event_id, status");
@@ -46,7 +48,6 @@ export async function GET() {
       );
     }
 
-    // Add real attendance counts to every event
     const eventsWithCounts = (events || []).map((event) => {
       const eventAttendees = (attendees || []).filter(
         (attendee) => attendee.event_id === event.id
@@ -69,11 +70,17 @@ export async function GET() {
     });
   } catch (error) {
     return NextResponse.json(
-      { error: error.message || "Could not load events" },
+      {
+        error: error.message || "Could not load events",
+      },
       { status: 500 }
     );
   }
 }
+
+/* =========================
+   CREATE EVENT
+========================= */
 
 export async function POST(req) {
   try {
@@ -120,6 +127,107 @@ export async function POST(req) {
     return NextResponse.json(
       { error: "Invalid event request" },
       { status: 400 }
+    );
+  }
+}
+
+/* =========================
+   DELETE EVENT
+========================= */
+
+export async function DELETE(req) {
+  try {
+    const { event_id } = await req.json();
+
+    if (!event_id) {
+      return NextResponse.json(
+        { error: "Event ID is required" },
+        { status: 400 }
+      );
+    }
+
+    /*
+      STEP 1:
+      Make sure event actually exists.
+    */
+
+    const { data: existingEvent, error: findError } = await supabase
+      .from("events")
+      .select("id, name")
+      .eq("id", event_id)
+      .maybeSingle();
+
+    if (findError) {
+      return NextResponse.json(
+        { error: findError.message },
+        { status: 500 }
+      );
+    }
+
+    if (!existingEvent) {
+      return NextResponse.json(
+        { error: "Event not found" },
+        { status: 404 }
+      );
+    }
+
+    /*
+      STEP 2:
+      Delete all registrations belonging
+      to this event.
+    */
+
+    const { error: attendeesDeleteError } = await supabase
+      .from("attendees")
+      .delete()
+      .eq("event_id", event_id);
+
+    if (attendeesDeleteError) {
+      return NextResponse.json(
+        {
+          error:
+            "Could not delete event registrations: " +
+            attendeesDeleteError.message,
+        },
+        { status: 500 }
+      );
+    }
+
+    /*
+      STEP 3:
+      Delete the event itself.
+
+      Once the event is deleted, its old
+      registration link will no longer
+      point to a valid event.
+    */
+
+    const { error: eventDeleteError } = await supabase
+      .from("events")
+      .delete()
+      .eq("id", event_id);
+
+    if (eventDeleteError) {
+      return NextResponse.json(
+        {
+          error:
+            "Registrations were deleted, but event deletion failed: " +
+            eventDeleteError.message,
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `${existingEvent.name} deleted successfully`,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: error.message || "Could not delete event",
+      },
+      { status: 500 }
     );
   }
 }
