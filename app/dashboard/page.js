@@ -614,7 +614,7 @@ export default function DashboardPage() {
           background: "#09131f",
           border: "1px solid #334255",
           borderRadius: 8,
-          color: "#ffffff",
+          color: "#FFFF00",
           padding: "0 15px",
           outline: "none",
         }}
