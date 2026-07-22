@@ -22,24 +22,30 @@ export default function DashboardPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [eventSearch, setEventSearch] = useState("");
   const [deletingEventId, setDeletingEventId] = useState(null);
-const [showEditModal, setShowEditModal] = useState(false);
-const [editingEvent, setEditingEvent] = useState(null);
-const [editEventName, setEditEventName] = useState("");
-const [savingEdit, setSavingEdit] = useState(false);
-  
+
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
+  const [editEventName, setEditEventName] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
   const selectedEvent = events.find(
     (event) => event.id === selectedEventId
   );
 
   async function loadEvents(selectFirst = false) {
-    const res = await fetch(`/api/events?time=${Date.now()}`, {
-      cache: "no-store",
-    });
+    const res = await fetch(
+      `/api/events?time=${Date.now()}`,
+      {
+        cache: "no-store",
+      }
+    );
 
     const data = await res.json();
 
     if (!res.ok) {
-      throw new Error(data.error || "Could not load events");
+      throw new Error(
+        data.error || "Could not load events"
+      );
     }
 
     const loadedEvents = data.events || [];
@@ -53,7 +59,9 @@ const [savingEdit, setSavingEdit] = useState(false);
       setSelectedEventId((current) => {
         if (
           current &&
-          loadedEvents.some((event) => event.id === current)
+          loadedEvents.some(
+            (event) => event.id === current
+          )
         ) {
           return current;
         }
@@ -63,7 +71,9 @@ const [savingEdit, setSavingEdit] = useState(false);
     }
   }
 
-  async function loadAttendees(isFirstLoad = false) {
+  async function loadAttendees(
+    isFirstLoad = false
+  ) {
     if (!selectedEventId) {
       setAttendees([]);
       setInitialLoading(false);
@@ -88,7 +98,8 @@ const [savingEdit, setSavingEdit] = useState(false);
 
       if (!res.ok) {
         throw new Error(
-          data.error || "Could not load attendees"
+          data.error ||
+            "Could not load attendees"
         );
       }
 
@@ -104,12 +115,18 @@ const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     loadEvents(true)
-      .catch((err) => setError(err.message))
-      .finally(() => setInitialLoading(false));
+      .catch((err) => {
+        setError(err.message);
+      })
+      .finally(() => {
+        setInitialLoading(false);
+      });
   }, []);
 
   useEffect(() => {
-    if (!selectedEventId) return;
+    if (!selectedEventId) {
+      return;
+    }
 
     setSearchQuery("");
     setStatusFilter("all");
@@ -126,7 +143,9 @@ const [savingEdit, setSavingEdit] = useState(false);
       }
     }, 5000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+    };
   }, [selectedEventId]);
 
   async function createEvent(e) {
@@ -157,14 +176,16 @@ const [savingEdit, setSavingEdit] = useState(false);
 
       if (!res.ok) {
         throw new Error(
-          data.error || "Could not create event"
+          data.error ||
+            "Could not create event"
         );
       }
 
       setEvents((current) => [
         data.event,
         ...current.filter(
-          (event) => event.id !== data.event.id
+          (event) =>
+            event.id !== data.event.id
         ),
       ]);
 
@@ -175,6 +196,10 @@ const [savingEdit, setSavingEdit] = useState(false);
       setNotice(
         `"${data.event.name}" created successfully.`
       );
+
+      setTimeout(() => {
+        setNotice("");
+      }, 3000);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -183,12 +208,18 @@ const [savingEdit, setSavingEdit] = useState(false);
   }
 
   async function copyEventLink(event) {
-    if (!event) return;
+    if (!event) {
+      return;
+    }
 
-    const link = `${window.location.origin}/form/${event.slug}`;
+    const link =
+      `${window.location.origin}` +
+      `/form/${event.slug}`;
 
     try {
-      await navigator.clipboard.writeText(link);
+      await navigator.clipboard.writeText(
+        link
+      );
 
       setNotice(
         `${event.name} registration link copied.`
@@ -205,7 +236,9 @@ const [savingEdit, setSavingEdit] = useState(false);
   }
 
   function openRegistrationForm(event) {
-    if (!event) return;
+    if (!event) {
+      return;
+    }
 
     window.open(
       `/form/${event.slug}`,
@@ -228,12 +261,13 @@ const [savingEdit, setSavingEdit] = useState(false);
   }
 
   async function deleteAttendee(attendee) {
-
     const confirmed = window.confirm(
       `Delete ${attendee.name}'s registration permanently?`
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     setDeletingId(attendee.id);
     setError("");
@@ -250,7 +284,8 @@ const [savingEdit, setSavingEdit] = useState(false);
 
       if (!res.ok) {
         throw new Error(
-          data.error || "Could not delete attendee"
+          data.error ||
+            "Could not delete attendee"
         );
       }
 
@@ -275,37 +310,165 @@ const [savingEdit, setSavingEdit] = useState(false);
     }
   }
 
-  <div
-  style={{
-    display: "flex",
-    gap: 8,
-    marginTop: 10,
-    marginBottom: 14,
-  }}
->
-  <button
-    type="button"
-    onClick={(e) => {
-      e.stopPropagation();
-      openEditModal(event);
-    }}
-  >
-    Edit Event
-  </button>
+  function openEditModal(event) {
+    if (!event) {
+      return;
+    }
 
-  <button
-    type="button"
-    onClick={(e) => {
-      e.stopPropagation();
-      deleteEvent(event);
-    }}
-  >
-    Delete Event
-  </button>
-</div>
+    setEditingEvent(event);
+    setEditEventName(event.name);
+    setShowEditModal(true);
+  }
+
+  async function updateEvent(e) {
+    e.preventDefault();
+
+    if (!editingEvent) {
+      return;
+    }
+
+    setError("");
+    setNotice("");
+
+    if (!editEventName.trim()) {
+      setError("Enter an event name.");
+      return;
+    }
+
+    setSavingEdit(true);
+
+    try {
+      const res = await fetch("/api/events", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          event_id: editingEvent.id,
+          name: editEventName.trim(),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          data.error ||
+            "Could not update event"
+        );
+      }
+
+      setEvents((current) =>
+        current.map((event) =>
+          event.id === data.event.id
+            ? {
+                ...event,
+                ...data.event,
+              }
+            : event
+        )
+      );
+
+      setShowEditModal(false);
+      setEditingEvent(null);
+      setEditEventName("");
+
+      setNotice(
+        `"${data.event.name}" updated successfully.`
+      );
+
+      setTimeout(() => {
+        setNotice("");
+      }, 3000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function deleteEvent(event) {
+    if (!event) {
+      return;
+    }
+
+    const firstConfirm = window.confirm(
+      `Delete "${event.name}"?\n\nThis will permanently delete this event and all registrations connected to it.`
+    );
+
+    if (!firstConfirm) {
+      return;
+    }
+
+    const secondConfirm = window.confirm(
+      `Final confirmation:\n\n"${event.name}" and all of its attendee data will be permanently deleted. The registration link will also stop working.\n\nContinue?`
+    );
+
+    if (!secondConfirm) {
+      return;
+    }
+
+    setDeletingEventId(event.id);
+    setError("");
+    setNotice("");
+
+    try {
+      const res = await fetch("/api/events", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          event_id: event.id,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          data.error ||
+            "Could not delete event"
+        );
+      }
+
+      const remainingEvents =
+        events.filter(
+          (currentEvent) =>
+            currentEvent.id !== event.id
+        );
+
+      setEvents(remainingEvents);
+
+      if (selectedEventId === event.id) {
+        if (remainingEvents.length > 0) {
+          setSelectedEventId(
+            remainingEvents[0].id
+          );
+        } else {
+          setSelectedEventId("");
+          setAttendees([]);
+        }
+      }
+
+      setNotice(
+        `"${event.name}" deleted successfully.`
+      );
+
+      setTimeout(() => {
+        setNotice("");
+      }, 4000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDeletingEventId(null);
+    }
+  }
 
   function downloadReport(status) {
-    if (!selectedEventId) return;
+    if (!selectedEventId) {
+      return;
+    }
 
     window.location.href =
       `/api/attendees/export?status=${status}` +
@@ -315,7 +478,8 @@ const [savingEdit, setSavingEdit] = useState(false);
   }
 
   const presentCount = attendees.filter(
-    (attendee) => attendee.status === "present"
+    (attendee) =>
+      attendee.status === "present"
   ).length;
 
   const absentCount =
@@ -330,14 +494,18 @@ const [savingEdit, setSavingEdit] = useState(false);
     : "";
 
   const filteredEvents = useMemo(() => {
-    const query = eventSearch.trim().toLowerCase();
+    const query = eventSearch
+      .trim()
+      .toLowerCase();
 
     if (!query) {
       return events;
     }
 
     return events.filter((event) =>
-      event.name?.toLowerCase().includes(query)
+      event.name
+        ?.toLowerCase()
+        .includes(query)
     );
   }, [events, eventSearch]);
 
@@ -346,33 +514,37 @@ const [savingEdit, setSavingEdit] = useState(false);
       .trim()
       .toLowerCase();
 
-    return attendees.filter((attendee) => {
-      const attendeeStatus =
-        attendee.status === "present"
-          ? "present"
-          : "absent";
+    return attendees.filter(
+      (attendee) => {
+        const attendeeStatus =
+          attendee.status === "present"
+            ? "present"
+            : "absent";
 
-      const matchesStatus =
-        statusFilter === "all" ||
-        attendeeStatus === statusFilter;
+        const matchesStatus =
+          statusFilter === "all" ||
+          attendeeStatus === statusFilter;
 
-      const searchableText = [
-        attendee.name,
-        attendee.email,
-        attendee.phone,
-        attendee.whatsapp,
-        attendee.city,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
+        const searchableText = [
+          attendee.name,
+          attendee.email,
+          attendee.phone,
+          attendee.whatsapp,
+          attendee.city,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
 
-      const matchesSearch =
-        !query ||
-        searchableText.includes(query);
+        const matchesSearch =
+          !query ||
+          searchableText.includes(query);
 
-      return matchesStatus && matchesSearch;
-    });
+        return (
+          matchesStatus && matchesSearch
+        );
+      }
+    );
   }, [
     attendees,
     searchQuery,
@@ -416,12 +588,11 @@ const [savingEdit, setSavingEdit] = useState(false);
             <h1>Event Management</h1>
 
             <p>
-              Manage registrations, check-ins and
-              reports
+              Manage registrations, check-ins and reports
             </p>
           </div>
 
-         <div
+          <div
             style={{
               display: "flex",
               gap: 12,
@@ -430,64 +601,12 @@ const [savingEdit, setSavingEdit] = useState(false);
               maxWidth: 500,
             }}
           >
-           <div
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      marginTop: 10,
-                      marginBottom: 14,
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEditModal(event);
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: "9px 12px",
-                        background: "rgba(255, 193, 7, 0.06)",
-                        border: "1px solid rgba(255, 193, 7, 0.45)",
-                        borderRadius: 7,
-                        color: "#ffc107",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Edit Event
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteEvent(event);
-                      }}
-                      disabled={deletingEventId === event.id}
-                      style={{
-                        flex: 1,
-                        padding: "9px 12px",
-                        background: "rgba(255, 93, 93, 0.06)",
-                        border: "1px solid rgba(255, 93, 93, 0.45)",
-                        borderRadius: 7,
-                        color: "#ff7777",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {deletingEventId === event.id
-                        ? "Deleting Event..."
-                        : "Delete Event"}
-                    </button>
-                  </div>
-
             <input
               type="search"
               value={eventSearch}
-              onChange={(e) => setEventSearch(e.target.value)}
+              onChange={(e) =>
+                setEventSearch(e.target.value)
+              }
               placeholder="Search events..."
               style={{
                 flex: 1,
@@ -538,6 +657,14 @@ const [savingEdit, setSavingEdit] = useState(false);
               + Create Event
             </button>
           </div>
+        ) : filteredEvents.length === 0 ? (
+          <div className="empty-events">
+            <h2>No matching events</h2>
+
+            <p>
+              No events match your current search.
+            </p>
+          </div>
         ) : (
           <section className="events-grid">
             {filteredEvents.map((event) => {
@@ -581,6 +708,7 @@ const [savingEdit, setSavingEdit] = useState(false);
 
                     <button
                       className="copy-link-button"
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         copyEventLink(event);
@@ -592,6 +720,7 @@ const [savingEdit, setSavingEdit] = useState(false);
 
                   <button
                     className="open-form-button"
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       openRegistrationForm(event);
@@ -600,31 +729,70 @@ const [savingEdit, setSavingEdit] = useState(false);
                     Open Form ↗
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteEvent(event);
-                    }}
-                    disabled={deletingEventId === event.id}
+                  <div
                     style={{
-                      width: "100%",
+                      display: "flex",
+                      gap: 8,
                       marginTop: 10,
                       marginBottom: 14,
-                      padding: "9px 12px",
-                      background: "rgba(255, 93, 93, 0.06)",
-                      border: "1px solid rgba(255, 93, 93, 0.45)",
-                      borderRadius: 7,
-                      color: "#ff7777",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: "pointer",
                     }}
                   >
-                    {deletingEventId === event.id
-                      ? "Deleting Event..."
-                      : "Delete Event"}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditModal(event);
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: "9px 12px",
+                        background: "transparent",
+                        border: "1px solid #334255",
+                        borderRadius: 7,
+                        color: "#e8a33d",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Edit Event
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteEvent(event);
+                      }}
+                      disabled={
+                        deletingEventId === event.id
+                      }
+                      style={{
+                        flex: 1,
+                        padding: "9px 12px",
+                        background:
+                          "rgba(255, 93, 93, 0.06)",
+                        border:
+                          "1px solid rgba(255, 93, 93, 0.45)",
+                        borderRadius: 7,
+                        color: "#ff7777",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor:
+                          deletingEventId === event.id
+                            ? "not-allowed"
+                            : "pointer",
+                        opacity:
+                          deletingEventId === event.id
+                            ? 0.6
+                            : 1,
+                      }}
+                    >
+                      {deletingEventId === event.id
+                        ? "Deleting..."
+                        : "Delete Event"}
+                    </button>
+                  </div>
 
                   <div className="event-stats">
                     <div className="event-stat">
@@ -634,9 +802,9 @@ const [savingEdit, setSavingEdit] = useState(false);
 
                       <div>
                         <strong>
-                          {event.registered_count ||
-                            0}
+                          {event.registered_count || 0}
                         </strong>
+
                         <span>Registered</span>
                       </div>
                     </div>
@@ -650,6 +818,7 @@ const [savingEdit, setSavingEdit] = useState(false);
                         <strong>
                           {event.present_count || 0}
                         </strong>
+
                         <span>Present</span>
                       </div>
                     </div>
@@ -663,6 +832,7 @@ const [savingEdit, setSavingEdit] = useState(false);
                         <strong>
                           {event.absent_count || 0}
                         </strong>
+
                         <span>Absent</span>
                       </div>
                     </div>
@@ -688,6 +858,7 @@ const [savingEdit, setSavingEdit] = useState(false);
               <div className="report-buttons">
                 <button
                   className="report-button present-report"
+                  type="button"
                   onClick={() =>
                     downloadReport("present")
                   }
@@ -697,6 +868,7 @@ const [savingEdit, setSavingEdit] = useState(false);
 
                 <button
                   className="report-button absent-report"
+                  type="button"
                   onClick={() =>
                     downloadReport("absent")
                   }
@@ -718,6 +890,7 @@ const [savingEdit, setSavingEdit] = useState(false);
                 />
 
                 <button
+                  type="button"
                   onClick={() =>
                     copyEventLink(selectedEvent)
                   }
@@ -740,6 +913,7 @@ const [savingEdit, setSavingEdit] = useState(false);
                     <strong>
                       {attendees.length}
                     </strong>
+
                     <span>Registered</span>
                   </div>
                 </div>
@@ -753,6 +927,7 @@ const [savingEdit, setSavingEdit] = useState(false);
                     <strong>
                       {presentCount}
                     </strong>
+
                     <span>Present</span>
                   </div>
                 </div>
@@ -766,6 +941,7 @@ const [savingEdit, setSavingEdit] = useState(false);
                     <strong>
                       {absentCount}
                     </strong>
+
                     <span>Absent</span>
                   </div>
                 </div>
@@ -845,18 +1021,26 @@ const [savingEdit, setSavingEdit] = useState(false);
                       (attendee) => (
                         <tr key={attendee.id}>
                           <td>
-                            <div className="attendee-name">
-                              <div className="attendee-avatar">
-                                {attendee.name
-                                  ?.split(" ")
-                                  .map(
-                                    (word) =>
-                                      word[0]
-                                  )
-                                  .join("")
-                                  .slice(0, 2)
-                                  .toUpperCase()}
-                              </div>
+                            <div className="attendee-name-cell">
+                              {attendee.photo_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={
+                                    attendee.photo_url
+                                  }
+                                  alt={
+                                    attendee.name
+                                  }
+                                  className="attendee-avatar"
+                                />
+                              ) : (
+                                <div className="attendee-avatar-placeholder">
+                                  {attendee.name
+                                    ?.charAt(0)
+                                    ?.toUpperCase() ||
+                                    "?"}
+                                </div>
+                              )}
 
                               <span>
                                 {attendee.name}
@@ -870,8 +1054,7 @@ const [savingEdit, setSavingEdit] = useState(false);
                           </td>
 
                           <td>
-                            {attendee.city ||
-                              "—"}
+                            {attendee.city || "—"}
                           </td>
 
                           <td>
@@ -879,11 +1062,10 @@ const [savingEdit, setSavingEdit] = useState(false);
                               className={`dashboard-status ${
                                 attendee.status ===
                                 "present"
-                                  ? "dashboard-present"
-                                  : "dashboard-absent"
+                                  ? "dashboard-status-present"
+                                  : "dashboard-status-absent"
                               }`}
                             >
-                              <span />
                               {attendee.status ===
                               "present"
                                 ? "Present"
@@ -892,28 +1074,32 @@ const [savingEdit, setSavingEdit] = useState(false);
                           </td>
 
                           <td>
-                            {attendee.attended_at
-                              ? new Date(
-                                  attendee.attended_at
-                                ).toLocaleString()
-                              : "—"}
+                            <span className="checkin-time">
+                              {attendee.attended_at
+                                ? new Date(
+                                    attendee.attended_at
+                                  ).toLocaleString()
+                                : "—"}
+                            </span>
                           </td>
 
                           <td>
                             <div className="table-actions">
                               <button
                                 className="table-view-button"
+                                type="button"
                                 onClick={() =>
                                   setSelected(
                                     attendee
                                   )
                                 }
                               >
-                                ◉ View
+                                View
                               </button>
 
                               <button
                                 className="table-delete-button"
+                                type="button"
                                 onClick={() =>
                                   deleteAttendee(
                                     attendee
@@ -944,69 +1130,14 @@ const [savingEdit, setSavingEdit] = useState(false);
 
       {/* CREATE EVENT MODAL */}
 
-      {/* EDIT EVENT MODAL */}
-
-      {showEditModal && editingEvent && (
+      {showCreateModal && (
         <div
           className="modal-overlay"
           onClick={() => {
-            setShowEditModal(false);
-            setEditingEvent(null);
+            if (!creatingEvent) {
+              setShowCreateModal(false);
+            }
           }}
-        >
-          <div
-            className="create-event-modal"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-heading-row">
-              <div>
-                <div className="eyebrow">Edit Event</div>
-                <h2>Rename Event</h2>
-              </div>
-
-              <button
-                className="modal-close"
-                onClick={() => {
-                  setShowEditModal(false);
-                  setEditingEvent(null);
-                }}
-              >
-                ×
-              </button>
-            </div>
-
-            <form onSubmit={updateEvent}>
-              <div className="dashboard-field">
-                <label>Event Name</label>
-
-                <input
-                  autoFocus
-                  value={editEventName}
-                  onChange={(e) =>
-                    setEditEventName(e.target.value)
-                  }
-                  placeholder="Example: Manisha Birthday"
-                  required
-                />
-              </div>
-
-              <button
-                className="modal-create-button"
-                disabled={savingEdit}
-              >
-                {savingEdit ? "Saving..." : "Save Changes"}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ATTENDEE MODAL */}
-
-      {selected && (
-        <div
-          className="modal-overlay"
-          onClick={() => setSelected(null)}
         >
           <div
             className="modal-card"
@@ -1014,24 +1145,249 @@ const [savingEdit, setSavingEdit] = useState(false);
               e.stopPropagation()
             }
           >
-            <div className="modal-heading-row">
-              <div>
-                <div className="eyebrow">
-                  Attendee
-                </div>
+            <div className="eyebrow">
+              New Event
+            </div>
 
-                <h2>{selected.name}</h2>
+            <h2
+              className="title"
+              style={{
+                fontSize: 24,
+                marginBottom: 8,
+              }}
+            >
+              Create Event
+            </h2>
+
+            <p
+              style={{
+                color: "#9aa0b4",
+                fontSize: 13,
+                lineHeight: 1.6,
+                marginTop: 0,
+                marginBottom: 20,
+              }}
+            >
+              Create a new event and generate
+              its unique registration link.
+            </p>
+
+            <form onSubmit={createEvent}>
+              <div className="field">
+                <label>Event name</label>
+
+                <input
+                  value={newEventName}
+                  onChange={(e) =>
+                    setNewEventName(
+                      e.target.value
+                    )
+                  }
+                  placeholder="Example: Ahmedabad Meeting"
+                  autoFocus
+                  required
+                />
               </div>
 
-              <button
-                className="modal-close"
-                onClick={() =>
-                  setSelected(null)
-                }
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  marginTop: 20,
+                }}
               >
-                ×
-              </button>
+                <button
+                  type="button"
+                  className="view-btn"
+                  style={{
+                    flex: 1,
+                    padding: 12,
+                  }}
+                  onClick={() => {
+                    if (!creatingEvent) {
+                      setShowCreateModal(
+                        false
+                      );
+                      setNewEventName("");
+                    }
+                  }}
+                  disabled={creatingEvent}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="btn"
+                  style={{
+                    flex: 1,
+                  }}
+                  disabled={creatingEvent}
+                >
+                  {creatingEvent
+                    ? "Creating..."
+                    : "Create Event"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT EVENT MODAL */}
+
+      {showEditModal &&
+        editingEvent && (
+          <div
+            className="modal-overlay"
+            onClick={() => {
+              if (!savingEdit) {
+                setShowEditModal(false);
+                setEditingEvent(null);
+                setEditEventName("");
+              }
+            }}
+          >
+            <div
+              className="modal-card"
+              onClick={(e) =>
+                e.stopPropagation()
+              }
+            >
+              <div className="eyebrow">
+                Edit Event
+              </div>
+
+              <h2
+                className="title"
+                style={{
+                  fontSize: 24,
+                  marginBottom: 8,
+                }}
+              >
+                Rename Event
+              </h2>
+
+              <p
+                style={{
+                  color: "#9aa0b4",
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                  marginTop: 0,
+                  marginBottom: 20,
+                }}
+              >
+                Update the event name. The
+                existing registration link will
+                remain unchanged.
+              </p>
+
+              <form onSubmit={updateEvent}>
+                <div className="field">
+                  <label>Event name</label>
+
+                  <input
+                    value={editEventName}
+                    onChange={(e) =>
+                      setEditEventName(
+                        e.target.value
+                      )
+                    }
+                    placeholder="Enter event name"
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    marginTop: 20,
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="view-btn"
+                    style={{
+                      flex: 1,
+                      padding: 12,
+                    }}
+                    onClick={() => {
+                      if (!savingEdit) {
+                        setShowEditModal(false);
+                        setEditingEvent(null);
+                        setEditEventName("");
+                      }
+                    }}
+                    disabled={savingEdit}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="btn"
+                    style={{
+                      flex: 1,
+                    }}
+                    disabled={savingEdit}
+                  >
+                    {savingEdit
+                      ? "Saving..."
+                      : "Save Changes"}
+                  </button>
+                </div>
+              </form>
             </div>
+          </div>
+        )}
+
+      {/* ATTENDEE DETAILS MODAL */}
+
+      {selected && (
+        <div
+          className="modal-overlay"
+          onClick={() =>
+            setSelected(null)
+          }
+        >
+          <div
+            className="modal-card"
+            onClick={(e) =>
+              e.stopPropagation()
+            }
+          >
+            <div className="eyebrow">
+              Attendee
+            </div>
+
+            {selected.photo_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={selected.photo_url}
+                alt={selected.name}
+                style={{
+                  width: 110,
+                  height: 110,
+                  borderRadius: "50%",
+                  objectFit: "cover",
+                  display: "block",
+                  margin: "10px auto 20px",
+                  border:
+                    "3px solid var(--amber)",
+                }}
+              />
+            )}
+
+            <h2
+              className="title"
+              style={{
+                fontSize: 22,
+              }}
+            >
+              {selected.name}
+            </h2>
 
             <div className="modal-row">
               <span className="modal-label">
@@ -1065,7 +1421,7 @@ const [savingEdit, setSavingEdit] = useState(false);
 
             <div className="modal-row">
               <span className="modal-label">
-                City
+                Division
               </span>
 
               <span>
@@ -1075,10 +1431,33 @@ const [savingEdit, setSavingEdit] = useState(false);
 
             <div className="modal-row">
               <span className="modal-label">
-                Registered
+                Status
               </span>
 
-              <span>
+              <span
+                className={
+                  selected.status === "present"
+                    ? "status-present"
+                    : "status-absent"
+                }
+              >
+                {selected.status === "present"
+                  ? "Present"
+                  : "Absent"}
+              </span>
+            </div>
+
+            <div className="modal-row">
+              <span className="modal-label">
+                Registered at
+              </span>
+
+              <span
+                className="mono"
+                style={{
+                  fontSize: 12,
+                }}
+              >
                 {selected.created_at
                   ? new Date(
                       selected.created_at
@@ -1089,10 +1468,15 @@ const [savingEdit, setSavingEdit] = useState(false);
 
             <div className="modal-row">
               <span className="modal-label">
-                Check-in
+                Checked in at
               </span>
 
-              <span>
+              <span
+                className="mono"
+                style={{
+                  fontSize: 12,
+                }}
+              >
                 {selected.attended_at
                   ? new Date(
                       selected.attended_at
@@ -1100,6 +1484,19 @@ const [savingEdit, setSavingEdit] = useState(false);
                   : "—"}
               </span>
             </div>
+
+            <button
+              className="btn"
+              type="button"
+              style={{
+                marginTop: 20,
+              }}
+              onClick={() =>
+                setSelected(null)
+              }
+            >
+              Close
+            </button>
           </div>
         </div>
       )}
