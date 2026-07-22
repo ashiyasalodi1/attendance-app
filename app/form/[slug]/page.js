@@ -67,7 +67,7 @@ export default function EventFormPage() {
           name,
           email,
           whatsapp,
-          city,
+          Division,
           event_slug: eventSlug,
         }),
       });
