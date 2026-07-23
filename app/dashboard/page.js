@@ -493,16 +493,16 @@ export default function DashboardPage() {
   }
 
   function downloadReport(status) {
-    if (!selectedEventId) {
-      return;
-    }
-
-    window.location.href =
-      `/api/attendees/export?status=${status}` +
-      `&event_id=${encodeURIComponent(
-        selectedEventId
-      )}`;
+  if (!selectedEventId) {
+    return;
   }
+
+  const downloadUrl =
+    `/api/attendees/export?status=${encodeURIComponent(status)}` +
+    `&event_id=${encodeURIComponent(selectedEventId)}`;
+
+  window.location.href = downloadUrl;
+}
 
   const presentCount = attendees.filter(
     (attendee) =>
