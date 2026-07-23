@@ -22,7 +22,7 @@ export default function SelfCheckInPage() {
       }).catch((err) => setError(err.message));
   }, [slug]);
 
-  async function submit(e) {
+  async function submit(e, action) {
     e.preventDefault();
     setError("");
     setResult(null);
@@ -30,7 +30,7 @@ export default function SelfCheckInPage() {
     try {
       const response = await fetch("/api/self-check-in", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ event_slug: slug, employee_code: employeeCode }),
+        body: JSON.stringify({ event_slug: slug, employee_code: employeeCode, action }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not record attendance");
@@ -44,6 +44,6 @@ export default function SelfCheckInPage() {
 
   if (!event && !error) return <main className="page"><p className="subtitle">Loading event...</p></main>;
   if (!event) return <main className="page"><div className="eyebrow">Event unavailable</div><h1 className="title">This check-in QR is not valid</h1><p className="subtitle">{error}</p></main>;
-  if (result) return <main className="page"><div className="eyebrow">Attendance recorded</div><h1 className="title">Welcome, {result.name}</h1><p className="subtitle">{result.message}</p><p className="subtitle">You may scan again after 30 minutes.</p></main>;
-  return <main className="page"><div className="eyebrow">Welcome to {event.name}</div><h1 className="title">Mark your attendance</h1><p className="subtitle">Enter the employee code used when you registered for this event.</p><form className="card" onSubmit={submit}><div className="field"><label>Employee code</label><input value={employeeCode} onChange={(e) => setEmployeeCode(e.target.value)} required autoFocus /></div>{error && <p className="form-error">{error}</p>}<button className="btn" disabled={loading}>{loading ? "Saving..." : "Save attendance"}</button></form></main>;
+  if (result) return <main className="page"><div className="eyebrow">Attendance recorded</div><h1 className="title">Welcome, {result.name}</h1><p className="subtitle">{result.action === "check_in" ? "Your check-in has been recorded." : "Your check-out has been recorded. Thank you."}</p></main>;
+  return <main className="page"><div className="eyebrow">Welcome to {event.name}</div><h1 className="title">Mark your attendance</h1><p className="subtitle">Enter the employee code used when you registered, then choose check-in or check-out.</p><form className="card"><div className="field"><label>Employee code</label><input value={employeeCode} onChange={(e) => setEmployeeCode(e.target.value)} required autoFocus /></div>{error && <p className="form-error">{error}</p>}<div style={{ display: "flex", gap: 10 }}><button className="btn" type="button" disabled={loading} onClick={(e) => submit(e, "check_in")}>{loading ? "Saving..." : "Check in"}</button><button className="btn" type="button" disabled={loading} onClick={(e) => submit(e, "check_out")}>{loading ? "Saving..." : "Check out"}</button></div></form></main>;
 }

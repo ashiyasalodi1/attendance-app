@@ -18,10 +18,22 @@ function csvValue(value) {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
-function trackedDuration(firstScan, lastScan) {
-  if (!firstScan || !lastScan) return "";
-  const minutes = Math.max(0, Math.round((new Date(lastScan) - new Date(firstScan)) / 60000));
+function formatDuration(milliseconds) {
+  const minutes = Math.max(0, Math.round(milliseconds / 60000));
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+function actionSummary(actions) {
+  let openCheckIn = null;
+  let totalMilliseconds = 0;
+  for (const action of actions) {
+    if (action.action === "check_in") openCheckIn = new Date(action.recorded_at);
+    if (action.action === "check_out" && openCheckIn) {
+      totalMilliseconds += new Date(action.recorded_at) - openCheckIn;
+      openCheckIn = null;
+    }
+  }
+  return { total: formatDuration(totalMilliseconds), open: Boolean(openCheckIn) };
 }
 
 export async function GET(req) {
@@ -52,26 +64,27 @@ export async function GET(req) {
   }
 
   const attendeeIds = (data || []).map((attendee) => attendee.id);
-  const { data: scans, error: scansError } = attendeeIds.length
-    ? await supabase.from("attendance_scans").select("attendee_id, checked_at").in("attendee_id", attendeeIds).order("checked_at", { ascending: true })
+  const { data: actions, error: actionsError } = attendeeIds.length
+    ? await supabase.from("attendance_actions").select("attendee_id, action, source, recorded_at").in("attendee_id", attendeeIds).order("recorded_at", { ascending: true })
     : { data: [], error: null };
 
-  if (scansError) {
-    return NextResponse.json({ error: scansError.message }, { status: 500 });
+  if (actionsError) {
+    return NextResponse.json({ error: actionsError.message }, { status: 500 });
   }
 
-  const scansByAttendee = (scans || []).reduce((all, scan) => {
-    if (!all[scan.attendee_id]) all[scan.attendee_id] = [];
-    all[scan.attendee_id].push(scan.checked_at);
+  const actionsByAttendee = (actions || []).reduce((all, action) => {
+    if (!all[action.attendee_id]) all[action.attendee_id] = [];
+    all[action.attendee_id].push(action);
     return all;
   }, {});
 
   const rows = [
-    ["Name", "Employee Code", "WhatsApp Number", "Division", "Status", "Registered At", "First Scan", "Last Scan", "Scan Count", "Time Between First and Last Scan"],
+    ["Name", "Employee Code", "WhatsApp Number", "Division", "Status", "Registered At", "First Check-in", "Last Action", "Action Count", "Completed Attendance Time", "Currently Checked In"],
     ...(data || []).map((attendee) => {
-      const attendeeScans = scansByAttendee[attendee.id] || [];
-      const firstScan = attendeeScans[0];
-      const lastScan = attendeeScans.at(-1);
+      const attendeeActions = actionsByAttendee[attendee.id] || [];
+      const firstCheckIn = attendeeActions.find((item) => item.action === "check_in");
+      const lastAction = attendeeActions.at(-1);
+      const summary = actionSummary(attendeeActions);
       return [
       attendee.name,
       attendee.employee_code,
@@ -81,14 +94,15 @@ export async function GET(req) {
       attendee.created_at
         ? new Date(attendee.created_at).toLocaleString()
         : "",
-      firstScan
-        ? new Date(firstScan).toLocaleString()
+      firstCheckIn
+        ? new Date(firstCheckIn.recorded_at).toLocaleString()
         : "",
-      lastScan
-        ? new Date(lastScan).toLocaleString()
+      lastAction
+        ? `${lastAction.action === "check_in" ? "Check-in" : "Check-out"} — ${new Date(lastAction.recorded_at).toLocaleString()}`
         : "",
-      attendeeScans.length,
-      trackedDuration(firstScan, lastScan),
+      attendeeActions.length,
+      summary.total,
+      summary.open ? "Yes" : "No",
     ];
     }),
   ];

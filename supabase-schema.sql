@@ -51,11 +51,28 @@ create index if not exists attendance_scans_attendee_time_idx
 create index if not exists attendance_scans_event_time_idx
   on attendance_scans(event_id, checked_at desc);
 
+-- Check-in/check-out records used to calculate actual meeting time.
+create table if not exists attendance_actions (
+  id uuid primary key default gen_random_uuid(),
+  attendee_id uuid not null references attendees(id) on delete cascade,
+  event_id uuid not null references events(id) on delete cascade,
+  action text not null check (action in ('check_in', 'check_out')),
+  source text not null check (source in ('event_qr', 'owner_qr', 'manual')),
+  note text,
+  recorded_at timestamptz not null default now()
+);
+
+create index if not exists attendance_actions_attendee_time_idx
+  on attendance_actions(attendee_id, recorded_at asc);
+create index if not exists attendance_actions_event_time_idx
+  on attendance_actions(event_id, recorded_at asc);
+
 -- Browser clients never query these tables directly. All database access goes
 -- through server routes using SUPABASE_SERVICE_ROLE_KEY.
 alter table events enable row level security;
 alter table attendees enable row level security;
 alter table attendance_scans enable row level security;
+alter table attendance_actions enable row level security;
 
 -- The photo bucket is intentionally public so dashboard/pass images can render.
 insert into storage.buckets (id, name, public)

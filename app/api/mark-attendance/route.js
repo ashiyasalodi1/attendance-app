@@ -11,7 +11,7 @@ const supabase = createClient(
 
 export async function POST(req) {
   try {
-    const { id } = await req.json();
+    const { id, event_slug: eventSlug } = await req.json();
 
     if (!id) {
       return NextResponse.json({ error: "Missing QR id" }, { status: 400 });
@@ -27,19 +27,33 @@ export async function POST(req) {
       return NextResponse.json({ error: "QR not recognized" }, { status: 404 });
     }
 
+    if (eventSlug) {
+      const { data: selectedEvent } = await supabase.from("events")
+        .select("id").eq("slug", eventSlug).eq("is_active", true).maybeSingle();
+      if (!selectedEvent || selectedEvent.id !== existing.event_id) {
+        return NextResponse.json({ error: "This attendee is not registered for the selected event" }, { status: 400 });
+      }
+    }
+
+    const now = new Date().toISOString();
+    const { error: actionError } = await supabase.from("attendance_actions").insert({
+      attendee_id: existing.id,
+      event_id: existing.event_id,
+      action: "check_in",
+      source: "owner_qr",
+      recorded_at: now,
+    });
+    if (actionError) return NextResponse.json({ error: actionError.message }, { status: 500 });
+
     if (existing.status === "present") {
-      return NextResponse.json({
-        already: true,
-        name: existing.name,
-        attended_at: existing.attended_at,
-      });
+      return NextResponse.json({ already: true, name: existing.name, attended_at: existing.attended_at });
     }
 
     const { data: updated, error: updateError } = await supabase
       .from("attendees")
       .update({
         status: "present",
-        attended_at: new Date().toISOString(),
+        attended_at: now,
       })
       .eq("id", id)
       .select()

@@ -17,6 +17,7 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [deletingId, setDeletingId] = useState(null);
+  const [manualSavingId, setManualSavingId] = useState(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -307,6 +308,32 @@ export default function DashboardPage() {
       setError(err.message);
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function recordManualAttendance(attendee, action) {
+    const note = window.prompt(
+      `Reason for manual ${action === "check_in" ? "check-in" : "check-out"} (optional):`,
+      "Phone unavailable"
+    );
+    if (note === null) return;
+    setError("");
+    setManualSavingId(`${attendee.id}-${action}`);
+    try {
+      const response = await fetch("/api/attendees/manual-attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attendee_id: attendee.id, action, note }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not record manual attendance");
+      setNotice(`${data.name}: manual ${action === "check_in" ? "check-in" : "check-out"} recorded.`);
+      await loadAttendees(false);
+      await loadEvents(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setManualSavingId(null);
     }
   }
 
@@ -1123,6 +1150,24 @@ export default function DashboardPage() {
                                 }
                               >
                                 View
+                              </button>
+
+                              <button
+                                className="table-view-button"
+                                type="button"
+                                onClick={() => recordManualAttendance(attendee, "check_in")}
+                                disabled={manualSavingId === `${attendee.id}-check_in`}
+                              >
+                                {manualSavingId === `${attendee.id}-check_in` ? "Saving..." : "Manual In"}
+                              </button>
+
+                              <button
+                                className="table-view-button"
+                                type="button"
+                                onClick={() => recordManualAttendance(attendee, "check_out")}
+                                disabled={manualSavingId === `${attendee.id}-check_out`}
+                              >
+                                {manualSavingId === `${attendee.id}-check_out` ? "Saving..." : "Manual Out"}
                               </button>
 
                               <button
