@@ -78,13 +78,24 @@ export async function GET(req) {
     return all;
   }, {});
 
+  const { data: scans, error: scansError } = attendeeIds.length
+    ? await supabase.from("attendance_scans").select("attendee_id, checked_at").in("attendee_id", attendeeIds).order("checked_at", { ascending: true })
+    : { data: [], error: null };
+  if (scansError) return NextResponse.json({ error: scansError.message }, { status: 500 });
+  const scansByAttendee = (scans || []).reduce((all, scan) => {
+    if (!all[scan.attendee_id]) all[scan.attendee_id] = [];
+    all[scan.attendee_id].push(scan.checked_at);
+    return all;
+  }, {});
+
   const rows = [
-    ["Name", "Employee Code", "WhatsApp Number", "Division", "Status", "Registered At", "First Check-in", "Last Action", "Action Count", "Completed Attendance Time", "Currently Checked In"],
+    ["Name", "Employee Code", "WhatsApp Number", "Division", "Status", "Registered At", "First Check-in", "Last Action", "Action Count", "Completed Attendance Time", "Currently Checked In", "Confirmation Scan Count", "First Confirmation Scan", "Last Confirmation Scan", "All Confirmation Scan Times"],
     ...(data || []).map((attendee) => {
       const attendeeActions = actionsByAttendee[attendee.id] || [];
       const firstCheckIn = attendeeActions.find((item) => item.action === "check_in");
       const lastAction = attendeeActions.at(-1);
       const summary = actionSummary(attendeeActions);
+      const attendeeScans = scansByAttendee[attendee.id] || [];
       return [
       attendee.name,
       attendee.employee_code,
@@ -103,6 +114,10 @@ export async function GET(req) {
       attendeeActions.length,
       summary.total,
       summary.open ? "Yes" : "No",
+      attendeeScans.length,
+      attendeeScans[0] ? new Date(attendeeScans[0]).toLocaleString() : "",
+      attendeeScans.at(-1) ? new Date(attendeeScans.at(-1)).toLocaleString() : "",
+      attendeeScans.map((time) => new Date(time).toLocaleString()).join(" | "),
     ];
     }),
   ];
