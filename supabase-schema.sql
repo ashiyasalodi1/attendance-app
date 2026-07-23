@@ -37,10 +37,25 @@ alter table attendees alter column status set default 'absent';
 create index if not exists attendees_event_id_idx on attendees(event_id);
 create index if not exists events_slug_idx on events(slug);
 
+-- Every successful self check-in creates a time-stamped scan record.
+-- The app allows one record per attendee every 30 minutes.
+create table if not exists attendance_scans (
+  id uuid primary key default gen_random_uuid(),
+  attendee_id uuid not null references attendees(id) on delete cascade,
+  event_id uuid not null references events(id) on delete cascade,
+  checked_at timestamptz not null default now()
+);
+
+create index if not exists attendance_scans_attendee_time_idx
+  on attendance_scans(attendee_id, checked_at desc);
+create index if not exists attendance_scans_event_time_idx
+  on attendance_scans(event_id, checked_at desc);
+
 -- Browser clients never query these tables directly. All database access goes
 -- through server routes using SUPABASE_SERVICE_ROLE_KEY.
 alter table events enable row level security;
 alter table attendees enable row level security;
+alter table attendance_scans enable row level security;
 
 -- The photo bucket is intentionally public so dashboard/pass images can render.
 insert into storage.buckets (id, name, public)
