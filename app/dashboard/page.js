@@ -1067,6 +1067,7 @@ export default function DashboardPage() {
                       <th>Division</th>
                       <th>Status</th>
                       <th>Check-in time</th>
+                      <th>Check-out time</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -1135,6 +1136,16 @@ export default function DashboardPage() {
                                     attendee.attended_at
                                   ).toLocaleString()
                                 : "—"}
+                            </span>
+                          </td>
+
+                          <td>
+                            <span className="checkin-time">
+                              {attendee.checked_out_at
+                                ? new Date(
+                                    attendee.checked_out_at
+                                  ).toLocaleString()
+                                : "â€”"}
                             </span>
                           </td>
 
@@ -1545,6 +1556,25 @@ export default function DashboardPage() {
                       selected.attended_at
                     ).toLocaleString()
                   : "—"}
+              </span>
+            </div>
+
+            <div className="modal-row">
+              <span className="modal-label">
+                Checked out at
+              </span>
+
+              <span
+                className="mono"
+                style={{
+                  fontSize: 12,
+                }}
+              >
+                {selected.checked_out_at
+                  ? new Date(
+                      selected.checked_out_at
+                    ).toLocaleString()
+                  : "â€”"}
               </span>
             </div>
 

@@ -35,6 +35,9 @@ update attendees set status = 'absent' where status is null or status not in ('a
 alter table attendees alter column status set default 'absent';
 
 create index if not exists attendees_event_id_idx on attendees(event_id);
+create unique index if not exists attendees_event_employee_code_unique_idx
+  on attendees(event_id, employee_code)
+  where employee_code is not null;
 create index if not exists events_slug_idx on events(slug);
 
 -- Every successful self check-in creates a time-stamped scan record.
@@ -66,6 +69,7 @@ create index if not exists attendance_actions_attendee_time_idx
   on attendance_actions(attendee_id, recorded_at asc);
 create index if not exists attendance_actions_event_time_idx
   on attendance_actions(event_id, recorded_at asc);
+
 
 -- Browser clients never query these tables directly. All database access goes
 -- through server routes using SUPABASE_SERVICE_ROLE_KEY.

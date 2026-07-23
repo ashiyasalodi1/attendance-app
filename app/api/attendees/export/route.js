@@ -89,17 +89,17 @@ export async function GET(req) {
   }, {});
 
   const rows = [
-    ["Name", "Employee Code", "WhatsApp Number", "Division", "Status", "Registered At", "First Check-in", "Last Action", "Action Count", "Completed Attendance Time", "Currently Checked In", "Confirmation Scan Count", "First Confirmation Scan", "Last Confirmation Scan", "All Confirmation Scan Times"],
+    ["Name", "Employee Code", "WhatsApp Number", "Division", "Status", "Registration Time", "First Check-In Time", "Latest Check-Out Time", "Action Count", "Completed Attendance Time", "Currently Checked In", "Confirmation Scan Count", "First Confirmation Scan", "Last Confirmation Scan", "All Confirmation Scan Times"],
     ...(data || []).map((attendee) => {
       const attendeeActions = actionsByAttendee[attendee.id] || [];
       const firstCheckIn = attendeeActions.find((item) => item.action === "check_in");
-      const lastAction = attendeeActions.at(-1);
+      const latestCheckOut = attendeeActions.filter((item) => item.action === "check_out").at(-1);
       const summary = actionSummary(attendeeActions);
       const attendeeScans = scansByAttendee[attendee.id] || [];
       return [
       attendee.name,
-      attendee.employee_code,
-      attendee.whatsapp,
+      attendee.employee_code ? `'${attendee.employee_code}` : "",
+      attendee.whatsapp ? `'${attendee.whatsapp}` : "",
       attendee.division,
       attendee.status,
       attendee.created_at
@@ -108,8 +108,8 @@ export async function GET(req) {
       firstCheckIn
         ? new Date(firstCheckIn.recorded_at).toLocaleString()
         : "",
-      lastAction
-        ? `${lastAction.action === "check_in" ? "Check-in" : "Check-out"} — ${new Date(lastAction.recorded_at).toLocaleString()}`
+      latestCheckOut
+        ? new Date(latestCheckOut.recorded_at).toLocaleString()
         : "",
       attendeeActions.length,
       summary.total,
@@ -122,7 +122,8 @@ export async function GET(req) {
     }),
   ];
 
-  const csv = rows.map((row) => row.map(csvValue).join(",")).join("\n");
+  // UTF-8 BOM makes Excel display text correctly instead of mojibake characters.
+  const csv = "\uFEFF" + rows.map((row) => row.map(csvValue).join(",")).join("\n");
 
   return new NextResponse(csv, {
     headers: {
