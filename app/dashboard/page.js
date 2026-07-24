@@ -16,6 +16,12 @@ function formatIndiaTime(value) {
   }).format(new Date(value));
 }
 
+function indiaTodayInput() {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const get = (type) => parts.find((part) => part.type === type)?.value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
 export default function DashboardPage() {
   const [events, setEvents] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState("");
@@ -39,6 +45,11 @@ export default function DashboardPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [eventSearch, setEventSearch] = useState("");
   const [deletingEventId, setDeletingEventId] = useState(null);
+  const [reportFrom, setReportFrom] = useState(indiaTodayInput);
+  const [reportTo, setReportTo] = useState(indiaTodayInput);
+  const [loadingAttendee, setLoadingAttendee] = useState(false);
+  const [individualFrom, setIndividualFrom] = useState(indiaTodayInput);
+  const [individualTo, setIndividualTo] = useState(indiaTodayInput);
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
@@ -521,21 +532,37 @@ export default function DashboardPage() {
     }
   }
 
-  function downloadReport(status) {
+  function downloadReport(status = "", attendeeId = "", from = reportFrom, to = reportTo) {
     if (!selectedEventId) {
       return;
     }
+    const params = new URLSearchParams({ event_id: selectedEventId, from, to });
+    if (status) params.set("status", status);
+    if (attendeeId) params.set("attendee_id", attendeeId);
+    window.location.href = `/api/attendees/export?${params.toString()}`;
+  }
 
-    window.location.href =
-      `/api/attendees/export?status=${status}` +
-      `&event_id=${encodeURIComponent(
-        selectedEventId
-      )}`;
+  async function openAttendee(attendee) {
+    setSelected({ ...attendee, history: [] });
+    setIndividualFrom(reportFrom);
+    setIndividualTo(reportTo);
+    setLoadingAttendee(true);
+    try {
+      const response = await fetch(`/api/attendees/${attendee.id}?time=${Date.now()}`, { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not load attendee history.");
+      const latest = data.history?.[0] || {};
+      setSelected({ ...data.attendee, ...latest, history: data.history || [] });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoadingAttendee(false);
+    }
   }
 
   const presentCount = attendees.filter(
     (attendee) =>
-      attendee.status === "present"
+      Boolean(attendee.first_check_in_at)
   ).length;
 
   const absentCount =
@@ -937,6 +964,13 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            <div style={{ margin: "14px 0", padding: 12, border: "1px solid #334255", borderRadius: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
+              <div style={{ minWidth: 190 }}><strong>Date-wise Excel report</strong><div style={{ fontSize: 12, color: "#9aa0b4", marginTop: 4 }}>Daily Attendance + Monthly Summary sheets</div></div>
+              <label style={{ fontSize: 12 }}>From Date<input type="date" value={reportFrom} onChange={(e) => setReportFrom(e.target.value)} style={{ display: "block", marginTop: 4 }} /></label>
+              <label style={{ fontSize: 12 }}>To Date<input type="date" value={reportTo} onChange={(e) => setReportTo(e.target.value)} style={{ display: "block", marginTop: 4 }} /></label>
+              <button className="report-button present-report" type="button" onClick={() => downloadReport()}>Download Excel Report</button>
+            </div>
+
             {/* REGISTRATION LINK */}
 
             <div className="details-link-section">
@@ -1122,14 +1156,12 @@ export default function DashboardPage() {
                           <td>
                             <span
                               className={`dashboard-status ${
-                                attendee.status ===
-                                "present"
+                                attendee.first_check_in_at
                                   ? "dashboard-status-present"
                                   : "dashboard-status-absent"
                               }`}
                             >
-                              {attendee.status ===
-                              "present"
+                              {attendee.first_check_in_at
                                 ? "Present"
                                 : "Absent"}
                             </span>
@@ -1172,11 +1204,7 @@ export default function DashboardPage() {
                               <button
                                 className="table-view-button"
                                 type="button"
-                                onClick={() =>
-                                  setSelected(
-                                    attendee
-                                  )
-                                }
+                                onClick={() => openAttendee(attendee)}
                               >
                                 View
                               </button>
@@ -1608,6 +1636,16 @@ export default function DashboardPage() {
               <span className="mono" style={{ fontSize: 12 }}>
                 {formatIndiaTime(selected.second_check_out_at)}
               </span>
+            </div>
+
+            <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid #334255" }}>
+              <strong style={{ fontSize: 14 }}>Full date-wise attendance</strong>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10, alignItems: "end" }}>
+                <label style={{ fontSize: 12 }}>From<input type="date" value={individualFrom} onChange={(e) => setIndividualFrom(e.target.value)} style={{ display: "block", marginTop: 4 }} /></label>
+                <label style={{ fontSize: 12 }}>To<input type="date" value={individualTo} onChange={(e) => setIndividualTo(e.target.value)} style={{ display: "block", marginTop: 4 }} /></label>
+                <button className="table-view-button" type="button" onClick={() => downloadReport("", selected.id, individualFrom, individualTo)}>Download Excel</button>
+              </div>
+              {loadingAttendee ? <p className="subtitle">Loading full attendance history...</p> : <div style={{ maxHeight: 220, overflow: "auto", marginTop: 10 }}><table className="dashboard-table" style={{ minWidth: 620 }}><thead><tr><th>Date</th><th>In 1</th><th>Out 1</th><th>In 2</th><th>Out 2</th></tr></thead><tbody>{(selected.history || []).map((entry) => <tr key={entry.date}><td>{entry.date}</td><td>{formatIndiaTime(entry.first_check_in_at)}</td><td>{formatIndiaTime(entry.first_check_out_at)}</td><td>{formatIndiaTime(entry.second_check_in_at)}</td><td>{formatIndiaTime(entry.second_check_out_at)}</td></tr>)}{(selected.history || []).length === 0 && <tr><td colSpan="5">No attendance history yet.</td></tr>}</tbody></table></div>}
             </div>
 
             <button
