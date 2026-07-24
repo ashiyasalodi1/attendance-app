@@ -21,6 +21,17 @@ function attendanceTimes(actions) {
   };
 }
 
+function indiaDate(value) {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(value));
+  const get = (type) => parts.find((part) => part.type === type)?.value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+function addDays(date, days) {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const eventId = searchParams.get("event_id");
@@ -32,11 +43,16 @@ export async function GET(req) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const attendeeIds = (data || []).map((attendee) => attendee.id);
+  const today = indiaDate(new Date().toISOString());
+  const dayStart = new Date(`${today}T00:00:00+05:30`).toISOString();
+  const nextDayStart = new Date(`${addDays(today, 1)}T00:00:00+05:30`).toISOString();
   const { data: actions, error: actionsError } = attendeeIds.length
     ? await supabase
         .from("attendance_actions")
         .select("attendee_id, action, recorded_at")
         .in("attendee_id", attendeeIds)
+        .gte("recorded_at", dayStart)
+        .lt("recorded_at", nextDayStart)
         .order("recorded_at", { ascending: true })
     : { data: [], error: null };
   if (actionsError) return NextResponse.json({ error: actionsError.message }, { status: 500 });
@@ -52,7 +68,7 @@ export async function GET(req) {
     return {
       ...attendee,
       // attended_at is retained as a fallback for attendance recorded before attendance_actions existed.
-      first_check_in_at: times.first_check_in_at || attendee.attended_at || null,
+      first_check_in_at: times.first_check_in_at || (attendee.attended_at && attendee.attended_at >= dayStart && attendee.attended_at < nextDayStart ? attendee.attended_at : null),
       first_check_out_at: times.first_check_out_at,
       second_check_in_at: times.second_check_in_at,
       second_check_out_at: times.second_check_out_at,
