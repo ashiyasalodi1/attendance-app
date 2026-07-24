@@ -2,7 +2,6 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
@@ -10,143 +9,127 @@ const supabase = createClient(
 );
 
 function csvValue(value) {
-  const text = value === null || value === undefined ? "" : String(value);
+  let text = value === null || value === undefined ? "" : String(value);
+
+  if (/^[=+\-@]/.test(text)) {
+    text = `'${text}`;
+  }
+
   return `"${text.replace(/"/g, '""')}"`;
 }
 
-function formatIndiaTime(value) {
-  if (!value) return "";
+function formatDuration(milliseconds) {
+  const minutes = Math.max(0, Math.round(milliseconds / 60000));
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
 
-  return new Intl.DateTimeFormat("en-IN", {
-    timeZone: "Asia/Kolkata",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  }).format(new Date(value));
+function actionSummary(actions) {
+  let openCheckIn = null;
+  let totalMilliseconds = 0;
+  for (const action of actions) {
+    if (action.action === "check_in") openCheckIn = new Date(action.recorded_at);
+    if (action.action === "check_out" && openCheckIn) {
+      totalMilliseconds += new Date(action.recorded_at) - openCheckIn;
+      openCheckIn = null;
+    }
+  }
+  return { total: formatDuration(totalMilliseconds), open: Boolean(openCheckIn) };
 }
 
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
-
-  const eventId = searchParams.get("event_id");
   const status = searchParams.get("status");
+  const eventId = searchParams.get("event_id");
 
   if (!eventId) {
-    return NextResponse.json(
-      { error: "Event ID is required." },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Event is required" }, { status: 400 });
   }
 
   if (status !== "present" && status !== "absent") {
     return NextResponse.json(
-      { error: "Status must be present or absent." },
+      { error: "Status must be present or absent" },
       { status: 400 }
     );
   }
 
-  const { data: attendees, error: attendeesError } = await supabase
+  const { data, error } = await supabase
     .from("attendees")
     .select("*")
     .eq("event_id", eventId)
     .eq("status", status)
     .order("created_at", { ascending: false });
 
-  if (attendeesError) {
-    return NextResponse.json(
-      { error: attendeesError.message },
-      { status: 500 }
-    );
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const attendeeIds = attendees.map((attendee) => attendee.id);
+  const attendeeIds = (data || []).map((attendee) => attendee.id);
+  const { data: actions, error: actionsError } = attendeeIds.length
+    ? await supabase.from("attendance_actions").select("attendee_id, action, source, recorded_at").in("attendee_id", attendeeIds).order("recorded_at", { ascending: true })
+    : { data: [], error: null };
 
-  let actions = [];
-
-  if (attendeeIds.length > 0) {
-    const { data, error } = await supabase
-      .from("attendance_actions")
-      .select("attendee_id, action, recorded_at")
-      .eq("event_id", eventId)
-      .in("attendee_id", attendeeIds)
-      .order("recorded_at", { ascending: true });
-
-    if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
-    }
-
-    actions = data || [];
+  if (actionsError) {
+    return NextResponse.json({ error: actionsError.message }, { status: 500 });
   }
 
-  const actionsByAttendee = {};
+  const actionsByAttendee = (actions || []).reduce((all, action) => {
+    if (!all[action.attendee_id]) all[action.attendee_id] = [];
+    all[action.attendee_id].push(action);
+    return all;
+  }, {});
 
-  for (const action of actions) {
-    if (!actionsByAttendee[action.attendee_id]) {
-      actionsByAttendee[action.attendee_id] = [];
-    }
-
-    actionsByAttendee[action.attendee_id].push(action);
-  }
+  const { data: scans, error: scansError } = attendeeIds.length
+    ? await supabase.from("attendance_scans").select("attendee_id, checked_at").in("attendee_id", attendeeIds).order("checked_at", { ascending: true })
+    : { data: [], error: null };
+  if (scansError) return NextResponse.json({ error: scansError.message }, { status: 500 });
+  const scansByAttendee = (scans || []).reduce((all, scan) => {
+    if (!all[scan.attendee_id]) all[scan.attendee_id] = [];
+    all[scan.attendee_id].push(scan.checked_at);
+    return all;
+  }, {});
 
   const rows = [
-    [
-      "Name",
-      "Employee Code",
-      "WhatsApp Number",
-      "Division",
-      "Status",
-      "Registration Time",
-      "First Check-In Time",
-      "Latest Check-Out Time",
-    ],
-  ];
-
-  for (const attendee of attendees) {
-    const attendeeActions = actionsByAttendee[attendee.id] || [];
-
-    const firstCheckIn = attendeeActions.find(
-      (action) => action.action === "check_in"
-    );
-
-    const checkOutActions = attendeeActions.filter(
-      (action) => action.action === "check_out"
-    );
-
-    const latestCheckOut =
-      checkOutActions.length > 0
-        ? checkOutActions[checkOutActions.length - 1]
-        : null;
-
-    rows.push([
-      attendee.name || "",
+    ["Name", "Employee Code", "WhatsApp Number", "Division", "Status", "Registration Time", "First Check-In Time", "Latest Check-Out Time", "Action Count", "Completed Attendance Time", "Currently Checked In", "Confirmation Scan Count", "First Confirmation Scan", "Last Confirmation Scan", "All Confirmation Scan Times"],
+    ...(data || []).map((attendee) => {
+      const attendeeActions = actionsByAttendee[attendee.id] || [];
+      const firstCheckIn = attendeeActions.find((item) => item.action === "check_in");
+      const latestCheckOut = attendeeActions.filter((item) => item.action === "check_out").at(-1);
+      const summary = actionSummary(attendeeActions);
+      const attendeeScans = scansByAttendee[attendee.id] || [];
+      return [
+      attendee.name,
       attendee.employee_code ? `'${attendee.employee_code}` : "",
       attendee.whatsapp ? `'${attendee.whatsapp}` : "",
-      attendee.division || "",
-      attendee.status || "",
-      formatIndiaTime(attendee.created_at),
-      formatIndiaTime(firstCheckIn?.recorded_at),
-      formatIndiaTime(latestCheckOut?.recorded_at),
-    ]);
-  }
+      attendee.division,
+      attendee.status,
+      attendee.created_at
+        ? new Date(attendee.created_at).toLocaleString()
+        : "",
+      firstCheckIn
+        ? new Date(firstCheckIn.recorded_at).toLocaleString()
+        : "",
+      latestCheckOut
+        ? new Date(latestCheckOut.recorded_at).toLocaleString()
+        : "",
+      attendeeActions.length,
+      summary.total,
+      summary.open ? "Yes" : "No",
+      attendeeScans.length,
+      attendeeScans[0] ? new Date(attendeeScans[0]).toLocaleString() : "",
+      attendeeScans.at(-1) ? new Date(attendeeScans.at(-1)).toLocaleString() : "",
+      attendeeScans.map((time) => new Date(time).toLocaleString()).join(" | "),
+    ];
+    }),
+  ];
 
-  const csv =
-    "\uFEFF" +
-    rows.map((row) => row.map(csvValue).join(",")).join("\n");
+  // UTF-8 BOM makes Excel display text correctly instead of mojibake characters.
+  const csv = "\uFEFF" + rows.map((row) => row.map(csvValue).join(",")).join("\n");
 
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${status}-attendees.csv"`,
-      "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-      Pragma: "no-cache",
-      Expires: "0",
+      "Cache-Control": "no-store",
     },
   });
 }

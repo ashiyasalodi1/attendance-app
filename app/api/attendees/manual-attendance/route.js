@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { recordDailyAttendance } from "../../../../lib/daily-attendance";
 
 export const dynamic = "force-dynamic";
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co", process.env.SUPABASE_SERVICE_ROLE_KEY || "placeholder");
@@ -13,6 +14,17 @@ export async function POST(request) {
     const { data: attendee, error: attendeeError } = await supabase.from("attendees")
       .select("id, name, event_id, status").eq("id", attendeeId).single();
     if (attendeeError || !attendee) return NextResponse.json({ error: "Attendee not found" }, { status: 404 });
+
+    // Manual check-in is the owner fallback for a lost/dead phone. It always
+    // creates the new daily record, even if the public window is closed.
+    if (action === "check_in") {
+      const dailyResult = await recordDailyAttendance({
+        supabase, attendee, source: "manual", note: note?.trim() || "Owner manual attendance", allowClosed: true,
+      });
+      if (dailyResult.error) {
+        return NextResponse.json({ error: dailyResult.error, already: Boolean(dailyResult.alreadyMarked) }, { status: dailyResult.status || 500 });
+      }
+    }
     const now = new Date().toISOString();
     const { error: actionError } = await supabase.from("attendance_actions").insert({
       attendee_id: attendee.id, event_id: attendee.event_id, action, source: "manual",

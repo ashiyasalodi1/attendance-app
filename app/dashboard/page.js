@@ -18,6 +18,12 @@ export default function DashboardPage() {
   const [notice, setNotice] = useState("");
   const [deletingId, setDeletingId] = useState(null);
   const [manualSavingId, setManualSavingId] = useState(null);
+  const [todaySession, setTodaySession] = useState(null);
+  const [sessionSaving, setSessionSaving] = useState(false);
+  const [sessionMinutes, setSessionMinutes] = useState("60");
+  const [sessionPin, setSessionPin] = useState("");
+  const [reportFrom, setReportFrom] = useState("");
+  const [reportTo, setReportTo] = useState("");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -133,6 +139,7 @@ export default function DashboardPage() {
     setStatusFilter("all");
 
     loadAttendees(true);
+    loadTodaySession().catch((err) => setError(err.message));
 
     const interval = setInterval(async () => {
       await loadAttendees(false);
@@ -148,6 +155,12 @@ export default function DashboardPage() {
       clearInterval(interval);
     };
   }, [selectedEventId]);
+
+  useEffect(() => {
+    const today = indiaToday();
+    setReportFrom(today);
+    setReportTo(today);
+  }, []);
 
   async function createEvent(e) {
     e.preventDefault();
@@ -337,6 +350,28 @@ export default function DashboardPage() {
     }
   }
 
+  function indiaToday() {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+    const get = (type) => parts.find((part) => part.type === type)?.value;
+    return `${get("year")}-${get("month")}-${get("day")}`;
+  }
+
+  async function loadTodaySession() {
+    if (!selectedEventId) return;
+    const response = await fetch(
+      `/api/attendance-session?event_id=${encodeURIComponent(selectedEventId)}&time=${Date.now()}`,
+      { cache: "no-store" }
+    );
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not load today's check-in session.");
+    setTodaySession(data.session || null);
+  }
+
   function openEditModal(event) {
     if (!event) {
       return;
@@ -493,16 +528,16 @@ export default function DashboardPage() {
   }
 
   function downloadReport(status) {
-  if (!selectedEventId) {
-    return;
+    if (!selectedEventId) {
+      return;
+    }
+
+    window.location.href =
+      `/api/attendees/export?status=${status}` +
+      `&event_id=${encodeURIComponent(
+        selectedEventId
+      )}`;
   }
-
-  const downloadUrl =
-    `/api/attendees/export?status=${encodeURIComponent(status)}` +
-    `&event_id=${encodeURIComponent(selectedEventId)}`;
-
-  window.location.href = downloadUrl;
-}
 
   const presentCount = attendees.filter(
     (attendee) =>
@@ -541,41 +576,58 @@ export default function DashboardPage() {
       .trim()
       .toLowerCase();
 
-    return attendees.filter(
-      (attendee) => {
-        const attendeeStatus =
-          attendee.status === "present"
-            ? "present"
-            : "absent";
+    return attendees.filter((attendee) => {
+      const attendeeStatus = attendee.status === "present" ? "present" : "absent";
+      const matchesStatus = statusFilter === "all" || attendeeStatus === statusFilter;
+      const searchableText = [attendee.name, attendee.employee_code, attendee.whatsapp, attendee.division]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return matchesStatus && (!query || searchableText.includes(query));
+    });
+  }, [attendees, searchQuery, statusFilter]);
 
-        const matchesStatus =
-          statusFilter === "all" ||
-          attendeeStatus === statusFilter;
+  function downloadDailyReport() {
+    if (!selectedEventId || !reportFrom || !reportTo) {
+      setError("Choose From Date and To Date for the daily attendance report.");
+      return;
+    }
+    if (reportFrom > reportTo) {
+      setError("From Date cannot be after To Date.");
+      return;
+    }
+    window.location.href =
+      `/api/attendance-records/export?event_id=${encodeURIComponent(selectedEventId)}` +
+      `&from_date=${encodeURIComponent(reportFrom)}` +
+      `&to_date=${encodeURIComponent(reportTo)}`;
+  }
 
-        const searchableText = [
-          attendee.name,
-          attendee.employee_code,
-          attendee.whatsapp,
-          attendee.division,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-
-        const matchesSearch =
-          !query ||
-          searchableText.includes(query);
-
-        return (
-          matchesStatus && matchesSearch
-        );
-      }
-    );
-  }, [
-    attendees,
-    searchQuery,
-    statusFilter,
-  ]);
+  async function updateTodaySession(action) {
+    if (!selectedEventId) return;
+    setError("");
+    setSessionSaving(true);
+    try {
+      const response = await fetch("/api/attendance-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event_id: selectedEventId,
+          action,
+          duration_minutes: Number(sessionMinutes),
+          daily_pin: sessionPin,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not update today's session.");
+      setTodaySession(data.session || null);
+      setNotice(data.message);
+      setTimeout(() => setNotice(""), 3000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSessionSaving(false);
+    }
+  }
 
   return (
     <main className="dashboard-page">
@@ -931,6 +983,73 @@ export default function DashboardPage() {
                   ↓ Download Absent
                 </button>
               </div>
+            </div>
+
+            <div
+              style={{
+                margin: "16px 0",
+                padding: 16,
+                border: "1px solid #334255",
+                borderRadius: 10,
+                display: "flex",
+                gap: 12,
+                alignItems: "end",
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ minWidth: 210 }}>
+                <strong style={{ color: todaySession?.is_open ? "#42d77d" : "#ff6b6b" }}>
+                  {todaySession?.is_open ? "Today's check-in is OPEN" : "Today's check-in is CLOSED"}
+                </strong>
+                <div style={{ fontSize: 12, color: "#9aa0b4", marginTop: 5 }}>
+                  {todaySession?.is_open && todaySession.closes_at
+                    ? `Closes at ${new Date(todaySession.closes_at).toLocaleTimeString()}`
+                    : "Open this only when attendance should be accepted."}
+                </div>
+              </div>
+
+              {!todaySession?.is_open && (
+                <>
+                  <label style={{ fontSize: 12 }}>
+                    Window minutes
+                    <input type="number" min="1" max="720" value={sessionMinutes} onChange={(e) => setSessionMinutes(e.target.value)} style={{ display: "block", marginTop: 5, width: 110 }} />
+                  </label>
+                  <label style={{ fontSize: 12 }}>
+                    Optional daily PIN
+                    <input inputMode="numeric" maxLength="8" value={sessionPin} onChange={(e) => setSessionPin(e.target.value.replace(/\D/g, ""))} placeholder="e.g. 4821" style={{ display: "block", marginTop: 5, width: 130 }} />
+                  </label>
+                  <button className="report-button present-report" type="button" disabled={sessionSaving} onClick={() => updateTodaySession("open")}>
+                    {sessionSaving ? "Opening..." : "Open Today's Check-in"}
+                  </button>
+                </>
+              )}
+
+              {todaySession?.is_open && (
+                <button className="report-button absent-report" type="button" disabled={sessionSaving} onClick={() => updateTodaySession("close")}>
+                  {sessionSaving ? "Closing..." : "Close Check-in"}
+                </button>
+              )}
+            </div>
+
+            <div
+              style={{
+                margin: "16px 0",
+                padding: 16,
+                border: "1px solid #334255",
+                borderRadius: 10,
+                display: "flex",
+                gap: 10,
+                alignItems: "end",
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ minWidth: 185 }}>
+                <strong>Daily attendance report</strong>
+                <div style={{ fontSize: 12, color: "#9aa0b4", marginTop: 5 }}>Download date-wise attendance history.</div>
+              </div>
+              <label style={{ fontSize: 12 }}>From Date<input type="date" value={reportFrom} onChange={(e) => setReportFrom(e.target.value)} style={{ display: "block", marginTop: 5 }} /></label>
+              <label style={{ fontSize: 12 }}>To Date<input type="date" value={reportTo} onChange={(e) => setReportTo(e.target.value)} style={{ display: "block", marginTop: 5 }} /></label>
+              <button className="report-button present-report" type="button" onClick={downloadDailyReport}>Download Daily CSV</button>
             </div>
 
             {/* REGISTRATION LINK */}

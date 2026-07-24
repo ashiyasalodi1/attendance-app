@@ -70,6 +70,44 @@ create index if not exists attendance_actions_attendee_time_idx
 create index if not exists attendance_actions_event_time_idx
   on attendance_actions(event_id, recorded_at asc);
 
+-- One session is created for each event and Indian calendar date. The owner
+-- opens/closes this session from the dashboard; the printed event QR stays
+-- permanent and never needs to change.
+create table if not exists attendance_sessions (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references events(id) on delete cascade,
+  attendance_date date not null,
+  is_open boolean not null default false,
+  opened_at timestamptz,
+  closes_at timestamptz,
+  daily_pin text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (event_id, attendance_date)
+);
+
+-- This is the permanent daily history. The unique constraint is the final
+-- protection: one registered attendee can have only one record per event/day.
+create table if not exists attendance_records (
+  id uuid primary key default gen_random_uuid(),
+  attendee_id uuid not null references attendees(id) on delete cascade,
+  event_id uuid not null references events(id) on delete cascade,
+  session_id uuid references attendance_sessions(id) on delete set null,
+  attendance_date date not null,
+  checked_in_at timestamptz not null default now(),
+  source text not null check (source in ('event_qr', 'owner_qr', 'manual')),
+  note text,
+  created_at timestamptz not null default now(),
+  unique (attendee_id, event_id, attendance_date)
+);
+
+create index if not exists attendance_sessions_event_date_idx
+  on attendance_sessions(event_id, attendance_date desc);
+create index if not exists attendance_records_event_date_idx
+  on attendance_records(event_id, attendance_date desc);
+create index if not exists attendance_records_attendee_date_idx
+  on attendance_records(attendee_id, attendance_date desc);
+
 
 -- Browser clients never query these tables directly. All database access goes
 -- through server routes using SUPABASE_SERVICE_ROLE_KEY.
@@ -77,6 +115,8 @@ alter table events enable row level security;
 alter table attendees enable row level security;
 alter table attendance_scans enable row level security;
 alter table attendance_actions enable row level security;
+alter table attendance_sessions enable row level security;
+alter table attendance_records enable row level security;
 
 -- The photo bucket is intentionally public so dashboard/pass images can render.
 insert into storage.buckets (id, name, public)
