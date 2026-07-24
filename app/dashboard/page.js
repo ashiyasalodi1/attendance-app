@@ -18,8 +18,6 @@ export default function DashboardPage() {
   const [notice, setNotice] = useState("");
   const [deletingId, setDeletingId] = useState(null);
   const [manualSavingId, setManualSavingId] = useState(null);
-  const [securitySaving, setSecuritySaving] = useState(false);
-  const [securitySettings, setSecuritySettings] = useState({ latitude: "", longitude: "", radius: "150", checkInStart: "", checkInEnd: "", checkOutStart: "", checkOutEnd: "" });
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -149,19 +147,6 @@ export default function DashboardPage() {
     return () => {
       clearInterval(interval);
     };
-  }, [selectedEventId]);
-
-  useEffect(() => {
-    if (!selectedEvent) return;
-    setSecuritySettings({
-      latitude: selectedEvent.venue_latitude ?? "",
-      longitude: selectedEvent.venue_longitude ?? "",
-      radius: selectedEvent.venue_radius_meters ?? "150",
-      checkInStart: selectedEvent.check_in_start_time?.slice(0, 5) || "",
-      checkInEnd: selectedEvent.check_in_end_time?.slice(0, 5) || "",
-      checkOutStart: selectedEvent.check_out_start_time?.slice(0, 5) || "",
-      checkOutEnd: selectedEvent.check_out_end_time?.slice(0, 5) || "",
-    });
   }, [selectedEventId]);
 
   async function createEvent(e) {
@@ -556,16 +541,41 @@ export default function DashboardPage() {
       .trim()
       .toLowerCase();
 
-    return attendees.filter((attendee) => {
-      const attendeeStatus = attendee.status === "present" ? "present" : "absent";
-      const matchesStatus = statusFilter === "all" || attendeeStatus === statusFilter;
-      const searchableText = [attendee.name, attendee.employee_code, attendee.whatsapp, attendee.division]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return matchesStatus && (!query || searchableText.includes(query));
-    });
-  }, [attendees, searchQuery, statusFilter]);
+    return attendees.filter(
+      (attendee) => {
+        const attendeeStatus =
+          attendee.status === "present"
+            ? "present"
+            : "absent";
+
+        const matchesStatus =
+          statusFilter === "all" ||
+          attendeeStatus === statusFilter;
+
+        const searchableText = [
+          attendee.name,
+          attendee.employee_code,
+          attendee.whatsapp,
+          attendee.division,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        const matchesSearch =
+          !query ||
+          searchableText.includes(query);
+
+        return (
+          matchesStatus && matchesSearch
+        );
+      }
+    );
+  }, [
+    attendees,
+    searchQuery,
+    statusFilter,
+  ]);
 
   return (
     <main className="dashboard-page">
@@ -920,24 +930,6 @@ export default function DashboardPage() {
                 >
                   ↓ Download Absent
                 </button>
-              </div>
-            </div>
-
-            <div style={{ margin: "16px 0", padding: 16, border: "1px solid #334255", borderRadius: 10 }}>
-              <strong>Automatic venue &amp; attendance security</strong>
-              <p style={{ fontSize: 12, color: "#9aa0b4", margin: "6px 0 14px" }}>Save once. The permanent QR then accepts only users inside this GPS radius, during these India-time windows, after Face ID/Fingerprint confirmation.</p>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
-                <label style={{ fontSize: 12 }}>Venue latitude<input value={securitySettings.latitude} onChange={(e) => setSecuritySettings((current) => ({ ...current, latitude: e.target.value }))} style={{ display: "block", marginTop: 5, width: 150 }} /></label>
-                <label style={{ fontSize: 12 }}>Venue longitude<input value={securitySettings.longitude} onChange={(e) => setSecuritySettings((current) => ({ ...current, longitude: e.target.value }))} style={{ display: "block", marginTop: 5, width: 150 }} /></label>
-                <button type="button" className="view-btn" onClick={useCurrentVenueLocation}>Use my current venue location</button>
-                <label style={{ fontSize: 12 }}>GPS radius (meters)<input type="number" min="25" max="2000" value={securitySettings.radius} onChange={(e) => setSecuritySettings((current) => ({ ...current, radius: e.target.value }))} style={{ display: "block", marginTop: 5, width: 115 }} /></label>
-              </div>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end", marginTop: 12 }}>
-                <label style={{ fontSize: 12 }}>Check-in starts<input type="time" value={securitySettings.checkInStart} onChange={(e) => setSecuritySettings((current) => ({ ...current, checkInStart: e.target.value }))} style={{ display: "block", marginTop: 5 }} /></label>
-                <label style={{ fontSize: 12 }}>Check-in ends<input type="time" value={securitySettings.checkInEnd} onChange={(e) => setSecuritySettings((current) => ({ ...current, checkInEnd: e.target.value }))} style={{ display: "block", marginTop: 5 }} /></label>
-                <label style={{ fontSize: 12 }}>Check-out starts<input type="time" value={securitySettings.checkOutStart} onChange={(e) => setSecuritySettings((current) => ({ ...current, checkOutStart: e.target.value }))} style={{ display: "block", marginTop: 5 }} /></label>
-                <label style={{ fontSize: 12 }}>Check-out ends<input type="time" value={securitySettings.checkOutEnd} onChange={(e) => setSecuritySettings((current) => ({ ...current, checkOutEnd: e.target.value }))} style={{ display: "block", marginTop: 5 }} /></label>
-                <button className="report-button present-report" type="button" disabled={securitySaving} onClick={saveSecuritySettings}>{securitySaving ? "Saving..." : "Save automatic security"}</button>
               </div>
             </div>
 
@@ -1602,48 +1594,5 @@ export default function DashboardPage() {
         </div>
       )}
     </main>
-      );
-  }
-
-  function useCurrentVenueLocation() {
-    if (!navigator.geolocation) {
-      setError("This browser cannot read location. Enter venue latitude and longitude manually.");
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (position) => setSecuritySettings((current) => ({ ...current, latitude: position.coords.latitude.toFixed(6), longitude: position.coords.longitude.toFixed(6) })),
-      () => setError("Could not read location. Allow location permission and try again."),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    );
-  }
-
-  async function saveSecuritySettings() {
-    if (!selectedEventId) return;
-    setError("");
-    setSecuritySaving(true);
-    try {
-      const response = await fetch("/api/events/security", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          event_id: selectedEventId,
-          venue_latitude: securitySettings.latitude,
-          venue_longitude: securitySettings.longitude,
-          venue_radius_meters: Number(securitySettings.radius),
-          check_in_start_time: securitySettings.checkInStart,
-          check_in_end_time: securitySettings.checkInEnd,
-          check_out_start_time: securitySettings.checkOutStart,
-          check_out_end_time: securitySettings.checkOutEnd,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not save security settings.");
-      setEvents((current) => current.map((event) => event.id === data.event.id ? { ...event, ...data.event } : event));
-      setNotice("Venue, GPS radius and automatic attendance times saved.");
-      setTimeout(() => setNotice(""), 3000);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSecuritySaving(false);
-    }
-  }
+  );
+}

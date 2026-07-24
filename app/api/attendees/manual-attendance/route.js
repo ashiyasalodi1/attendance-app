@@ -13,7 +13,6 @@ export async function POST(request) {
     const { data: attendee, error: attendeeError } = await supabase.from("attendees")
       .select("id, name, event_id, status").eq("id", attendeeId).single();
     if (attendeeError || !attendee) return NextResponse.json({ error: "Attendee not found" }, { status: 404 });
-
     const now = new Date().toISOString();
     const { error: actionError } = await supabase.from("attendance_actions").insert({
       attendee_id: attendee.id, event_id: attendee.event_id, action, source: "manual",

@@ -17,7 +17,6 @@ export async function POST(req) {
     const eventSlug = body.event_slug?.trim();
     const photoUrl = body.photo_url?.trim() || null;
     if (!name || !employeeCode || !division) return NextResponse.json({ error: "Name, employee code and division are required" }, { status: 400 });
-    if (!/^\d+$/.test(employeeCode)) return NextResponse.json({ error: "Employee Code must contain numbers only." }, { status: 400 });
     if (!whatsapp || !/^[6-9]\d{9}$/.test(whatsapp)) return NextResponse.json({ error: "Enter a valid 10-digit WhatsApp number" }, { status: 400 });
     const { data: event, error: eventError } = await supabase.from("events").select("id").eq("slug", eventSlug).eq("is_active", true).single();
     if (eventError || !event) return NextResponse.json({ error: "This event link is not available" }, { status: 404 });
