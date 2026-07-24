@@ -19,6 +19,12 @@ alter table events add column if not exists check_in_start_time time;
 alter table events add column if not exists check_in_end_time time;
 alter table events add column if not exists check_out_start_time time;
 alter table events add column if not exists check_out_end_time time;
+alter table events add column if not exists event_start_date date;
+alter table events add column if not exists event_end_date date;
+alter table events add column if not exists check_in_2_start_time time;
+alter table events add column if not exists check_in_2_end_time time;
+alter table events add column if not exists check_out_2_start_time time;
+alter table events add column if not exists check_out_2_end_time time;
 
 create table if not exists attendees (
   id uuid primary key default gen_random_uuid(),
