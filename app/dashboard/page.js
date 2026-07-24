@@ -2,6 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+function formatIndiaTime(value) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  }).format(new Date(value));
+}
+
 export default function DashboardPage() {
   const [events, setEvents] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState("");
@@ -1056,8 +1070,10 @@ export default function DashboardPage() {
                       <th>WhatsApp</th>
                       <th>Division</th>
                       <th>Status</th>
-                      <th>Check-in time</th>
-                      <th>Check-out time</th>
+                      <th>Check-in 1</th>
+                      <th>Check-out 1</th>
+                      <th>Check-in 2</th>
+                      <th>Check-out 2</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -1121,9 +1137,9 @@ export default function DashboardPage() {
 
                           <td>
                             <span className="checkin-time">
-                              {attendee.attended_at
+                              {attendee.first_check_in_at
                                 ? new Date(
-                                    attendee.attended_at
+                                    attendee.first_check_in_at
                                   ).toLocaleString()
                                 : "—"}
                             </span>
@@ -1131,11 +1147,23 @@ export default function DashboardPage() {
 
                           <td>
                             <span className="checkin-time">
-                              {attendee.checked_out_at
+                              {attendee.first_check_out_at
                                 ? new Date(
-                                    attendee.checked_out_at
+                                    attendee.first_check_out_at
                                   ).toLocaleString()
                                 : "â€”"}
+                            </span>
+                          </td>
+
+                          <td>
+                            <span className="checkin-time">
+                              {formatIndiaTime(attendee.second_check_in_at)}
+                            </span>
+                          </td>
+
+                          <td>
+                            <span className="checkin-time">
+                              {formatIndiaTime(attendee.second_check_out_at)}
                             </span>
                           </td>
 
@@ -1532,7 +1560,7 @@ export default function DashboardPage() {
 
             <div className="modal-row">
               <span className="modal-label">
-                Checked in at
+                Check-in 1
               </span>
 
               <span
@@ -1541,9 +1569,9 @@ export default function DashboardPage() {
                   fontSize: 12,
                 }}
               >
-                {selected.attended_at
+                {selected.first_check_in_at
                   ? new Date(
-                      selected.attended_at
+                      selected.first_check_in_at
                     ).toLocaleString()
                   : "—"}
               </span>
@@ -1551,7 +1579,7 @@ export default function DashboardPage() {
 
             <div className="modal-row">
               <span className="modal-label">
-                Checked out at
+                Check-out 1
               </span>
 
               <span
@@ -1560,11 +1588,25 @@ export default function DashboardPage() {
                   fontSize: 12,
                 }}
               >
-                {selected.checked_out_at
+                {selected.first_check_out_at
                   ? new Date(
-                      selected.checked_out_at
+                      selected.first_check_out_at
                     ).toLocaleString()
                   : "â€”"}
+              </span>
+            </div>
+
+            <div className="modal-row">
+              <span className="modal-label">Check-in 2</span>
+              <span className="mono" style={{ fontSize: 12 }}>
+                {formatIndiaTime(selected.second_check_in_at)}
+              </span>
+            </div>
+
+            <div className="modal-row">
+              <span className="modal-label">Check-out 2</span>
+              <span className="mono" style={{ fontSize: 12 }}>
+                {formatIndiaTime(selected.second_check_out_at)}
               </span>
             </div>
 
