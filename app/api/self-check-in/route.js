@@ -5,6 +5,12 @@ export const dynamic = "force-dynamic";
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co", process.env.SUPABASE_SERVICE_ROLE_KEY || "placeholder");
 
+function indiaTodayStart() {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const get = (type) => parts.find((part) => part.type === type)?.value;
+  return new Date(`${get("year")}-${get("month")}-${get("day")}T00:00:00+05:30`).toISOString();
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -25,6 +31,17 @@ export async function POST(request) {
     if (attendeeError) throw attendeeError;
     if (!attendee || String(attendee.whatsapp || "").replace(/\D/g, "") !== whatsapp) {
       return NextResponse.json({ error: "Employee Code or WhatsApp number does not match your registration." }, { status: 403 });
+    }
+
+    const { count, error: countError } = await supabase
+      .from("attendance_actions")
+      .select("id", { count: "exact", head: true })
+      .eq("attendee_id", attendee.id)
+      .eq("action", action)
+      .gte("recorded_at", indiaTodayStart());
+    if (countError) throw countError;
+    if ((count || 0) >= 2) {
+      return NextResponse.json({ error: `Only two ${action === "check_in" ? "check-ins" : "check-outs"} can be recorded in one day.` }, { status: 409 });
     }
 
     const now = new Date().toISOString();
