@@ -11,6 +11,15 @@ create table if not exists events (
   created_at timestamptz not null default now()
 );
 
+-- One-time owner configuration for automatic venue and time checks.
+alter table events add column if not exists venue_latitude double precision;
+alter table events add column if not exists venue_longitude double precision;
+alter table events add column if not exists venue_radius_meters integer not null default 150;
+alter table events add column if not exists check_in_start_time time;
+alter table events add column if not exists check_in_end_time time;
+alter table events add column if not exists check_out_start_time time;
+alter table events add column if not exists check_out_end_time time;
+
 create table if not exists attendees (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -70,6 +79,31 @@ create index if not exists attendance_actions_attendee_time_idx
 create index if not exists attendance_actions_event_time_idx
   on attendance_actions(event_id, recorded_at asc);
 
+-- Passkeys store public keys only. Face ID/fingerprint data never leaves the
+-- attendee's phone; it is used by the device to sign a verification request.
+create table if not exists attendee_passkeys (
+  credential_id text primary key,
+  attendee_id uuid not null references attendees(id) on delete cascade,
+  public_key text not null,
+  counter bigint not null default 0,
+  transports text[],
+  created_at timestamptz not null default now(),
+  last_used_at timestamptz
+);
+
+create index if not exists attendee_passkeys_attendee_idx
+  on attendee_passkeys(attendee_id);
+
+create table if not exists webauthn_challenges (
+  id uuid primary key default gen_random_uuid(),
+  attendee_id uuid not null references attendees(id) on delete cascade,
+  ceremony text not null check (ceremony in ('registration', 'authentication')),
+  challenge text not null,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  unique (attendee_id, ceremony)
+);
+
 
 -- Browser clients never query these tables directly. All database access goes
 -- through server routes using SUPABASE_SERVICE_ROLE_KEY.
@@ -77,6 +111,8 @@ alter table events enable row level security;
 alter table attendees enable row level security;
 alter table attendance_scans enable row level security;
 alter table attendance_actions enable row level security;
+alter table attendee_passkeys enable row level security;
+alter table webauthn_challenges enable row level security;
 
 -- The photo bucket is intentionally public so dashboard/pass images can render.
 insert into storage.buckets (id, name, public)
