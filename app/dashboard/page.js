@@ -22,12 +22,32 @@ function indiaTodayInput() {
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
+const emptyEventSchedule = {
+  event_start_date: "",
+  event_end_date: "",
+  check_in_start_time: "",
+  check_in_end_time: "",
+  check_out_start_time: "",
+  check_out_end_time: "",
+  check_in_2_start_time: "",
+  check_in_2_end_time: "",
+  check_out_2_start_time: "",
+  check_out_2_end_time: "",
+};
+
+function AttendanceScheduleFields({ schedule, setSchedule }) {
+  const update = (key, value) => setSchedule((current) => ({ ...current, [key]: value }));
+  const time = (label, key) => <label style={{ fontSize: 12 }}>{label}<input type="time" value={schedule[key]} onChange={(e) => update(key, e.target.value)} style={{ display: "block", marginTop: 4 }} required /></label>;
+  return <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid #334255" }}><strong style={{ fontSize: 14 }}>Daily attendance schedule</strong><p style={{ fontSize: 12, color: "#9aa0b4", margin: "5px 0 10px" }}>The same permanent QR works only during these India-time windows.</p><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><label style={{ fontSize: 12 }}>Event Start Date<input type="date" value={schedule.event_start_date} onChange={(e) => update("event_start_date", e.target.value)} style={{ display: "block", marginTop: 4 }} required /></label><label style={{ fontSize: 12 }}>Event End Date<input type="date" value={schedule.event_end_date} onChange={(e) => update("event_end_date", e.target.value)} style={{ display: "block", marginTop: 4 }} required /></label></div><div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>{time("Check-in 1 starts", "check_in_start_time")}{time("Check-in 1 ends", "check_in_end_time")}{time("Check-out 1 starts", "check_out_start_time")}{time("Check-out 1 ends", "check_out_end_time")}{time("Check-in 2 starts", "check_in_2_start_time")}{time("Check-in 2 ends", "check_in_2_end_time")}{time("Check-out 2 starts", "check_out_2_start_time")}{time("Check-out 2 ends", "check_out_2_end_time")}</div></div>;
+}
+
 export default function DashboardPage() {
   const [events, setEvents] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState("");
   const [attendees, setAttendees] = useState([]);
 
   const [newEventName, setNewEventName] = useState("");
+  const [newEventSchedule, setNewEventSchedule] = useState(emptyEventSchedule);
   const [creatingEvent, setCreatingEvent] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -54,6 +74,7 @@ export default function DashboardPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [editEventName, setEditEventName] = useState("");
+  const [editEventSchedule, setEditEventSchedule] = useState(emptyEventSchedule);
   const [savingEdit, setSavingEdit] = useState(false);
 
   const selectedEvent = events.find(
@@ -210,6 +231,7 @@ export default function DashboardPage() {
         },
         body: JSON.stringify({
           name: newEventName.trim(),
+          ...newEventSchedule,
         }),
       });
 
@@ -232,6 +254,7 @@ export default function DashboardPage() {
 
       setSelectedEventId(data.event.id);
       setNewEventName("");
+      setNewEventSchedule(emptyEventSchedule);
       setShowCreateModal(false);
 
       setNotice(
@@ -384,6 +407,13 @@ export default function DashboardPage() {
 
     setEditingEvent(event);
     setEditEventName(event.name);
+    setEditEventSchedule({
+      event_start_date: event.event_start_date || "", event_end_date: event.event_end_date || "",
+      check_in_start_time: event.check_in_start_time?.slice(0, 5) || "", check_in_end_time: event.check_in_end_time?.slice(0, 5) || "",
+      check_out_start_time: event.check_out_start_time?.slice(0, 5) || "", check_out_end_time: event.check_out_end_time?.slice(0, 5) || "",
+      check_in_2_start_time: event.check_in_2_start_time?.slice(0, 5) || "", check_in_2_end_time: event.check_in_2_end_time?.slice(0, 5) || "",
+      check_out_2_start_time: event.check_out_2_start_time?.slice(0, 5) || "", check_out_2_end_time: event.check_out_2_end_time?.slice(0, 5) || "",
+    });
     setShowEditModal(true);
   }
 
@@ -413,6 +443,7 @@ export default function DashboardPage() {
         body: JSON.stringify({
           event_id: editingEvent.id,
           name: editEventName.trim(),
+          ...editEventSchedule,
         }),
       });
 
@@ -439,6 +470,7 @@ export default function DashboardPage() {
       setShowEditModal(false);
       setEditingEvent(null);
       setEditEventName("");
+      setEditEventSchedule(emptyEventSchedule);
 
       setNotice(
         `"${data.event.name}" updated successfully.`
@@ -1319,6 +1351,8 @@ export default function DashboardPage() {
                 />
               </div>
 
+              <AttendanceScheduleFields schedule={newEventSchedule} setSchedule={setNewEventSchedule} />
+
               <div
                 style={{
                   display: "flex",
@@ -1338,7 +1372,8 @@ export default function DashboardPage() {
                       setShowCreateModal(
                         false
                       );
-                      setNewEventName("");
+                       setNewEventName("");
+                       setNewEventSchedule(emptyEventSchedule);
                     }
                   }}
                   disabled={creatingEvent}
@@ -1429,6 +1464,8 @@ export default function DashboardPage() {
                   />
                 </div>
 
+                <AttendanceScheduleFields schedule={editEventSchedule} setSchedule={setEditEventSchedule} />
+
                 <div
                   style={{
                     display: "flex",
@@ -1448,6 +1485,7 @@ export default function DashboardPage() {
                         setShowEditModal(false);
                         setEditingEvent(null);
                         setEditEventName("");
+                        setEditEventSchedule(emptyEventSchedule);
                       }
                     }}
                     disabled={savingEdit}
