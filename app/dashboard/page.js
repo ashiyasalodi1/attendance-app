@@ -18,6 +18,8 @@ export default function DashboardPage() {
   const [notice, setNotice] = useState("");
   const [deletingId, setDeletingId] = useState(null);
   const [manualSavingId, setManualSavingId] = useState(null);
+  const [securitySaving, setSecuritySaving] = useState(false);
+  const [securitySettings, setSecuritySettings] = useState({ latitude: "", longitude: "", radius: "150", checkInStart: "", checkInEnd: "", checkOutStart: "", checkOutEnd: "" });
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -147,6 +149,19 @@ export default function DashboardPage() {
     return () => {
       clearInterval(interval);
     };
+  }, [selectedEventId]);
+
+  useEffect(() => {
+    if (!selectedEvent) return;
+    setSecuritySettings({
+      latitude: selectedEvent.venue_latitude ?? "",
+      longitude: selectedEvent.venue_longitude ?? "",
+      radius: selectedEvent.venue_radius_meters ?? "150",
+      checkInStart: selectedEvent.check_in_start_time?.slice(0, 5) || "",
+      checkInEnd: selectedEvent.check_in_end_time?.slice(0, 5) || "",
+      checkOutStart: selectedEvent.check_out_start_time?.slice(0, 5) || "",
+      checkOutEnd: selectedEvent.check_out_end_time?.slice(0, 5) || "",
+    });
   }, [selectedEventId]);
 
   async function createEvent(e) {
@@ -541,41 +556,16 @@ export default function DashboardPage() {
       .trim()
       .toLowerCase();
 
-    return attendees.filter(
-      (attendee) => {
-        const attendeeStatus =
-          attendee.status === "present"
-            ? "present"
-            : "absent";
-
-        const matchesStatus =
-          statusFilter === "all" ||
-          attendeeStatus === statusFilter;
-
-        const searchableText = [
-          attendee.name,
-          attendee.employee_code,
-          attendee.whatsapp,
-          attendee.division,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-
-        const matchesSearch =
-          !query ||
-          searchableText.includes(query);
-
-        return (
-          matchesStatus && matchesSearch
-        );
-      }
-    );
-  }, [
-    attendees,
-    searchQuery,
-    statusFilter,
-  ]);
+    return attendees.filter((attendee) => {
+      const attendeeStatus = attendee.status === "present" ? "present" : "absent";
+      const matchesStatus = statusFilter === "all" || attendeeStatus === statusFilter;
+      const searchableText = [attendee.name, attendee.employee_code, attendee.whatsapp, attendee.division]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return matchesStatus && (!query || searchableText.includes(query));
+    });
+  }, [attendees, searchQuery, statusFilter]);
 
   return (
     <main className="dashboard-page">
@@ -1594,5 +1584,48 @@ export default function DashboardPage() {
         </div>
       )}
     </main>
-  );
-}
+      );
+  }
+
+  function useCurrentVenueLocation() {
+    if (!navigator.geolocation) {
+      setError("This browser cannot read location. Enter venue latitude and longitude manually.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => setSecuritySettings((current) => ({ ...current, latitude: position.coords.latitude.toFixed(6), longitude: position.coords.longitude.toFixed(6) })),
+      () => setError("Could not read location. Allow location permission and try again."),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }
+
+  async function saveSecuritySettings() {
+    if (!selectedEventId) return;
+    setError("");
+    setSecuritySaving(true);
+    try {
+      const response = await fetch("/api/events/security", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event_id: selectedEventId,
+          venue_latitude: securitySettings.latitude,
+          venue_longitude: securitySettings.longitude,
+          venue_radius_meters: Number(securitySettings.radius),
+          check_in_start_time: securitySettings.checkInStart,
+          check_in_end_time: securitySettings.checkInEnd,
+          check_out_start_time: securitySettings.checkOutStart,
+          check_out_end_time: securitySettings.checkOutEnd,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not save security settings.");
+      setEvents((current) => current.map((event) => event.id === data.event.id ? { ...event, ...data.event } : event));
+      setNotice("Venue, GPS radius and automatic attendance times saved.");
+      setTimeout(() => setNotice(""), 3000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSecuritySaving(false);
+    }
+  }
