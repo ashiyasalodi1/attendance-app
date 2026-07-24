@@ -11,6 +11,15 @@ create table if not exists events (
   created_at timestamptz not null default now()
 );
 
+-- One-time owner configuration for automatic venue and time checks.
+alter table events add column if not exists venue_latitude double precision;
+alter table events add column if not exists venue_longitude double precision;
+alter table events add column if not exists venue_radius_meters integer not null default 150;
+alter table events add column if not exists check_in_start_time time;
+alter table events add column if not exists check_in_end_time time;
+alter table events add column if not exists check_out_start_time time;
+alter table events add column if not exists check_out_end_time time;
+
 create table if not exists attendees (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -70,43 +79,30 @@ create index if not exists attendance_actions_attendee_time_idx
 create index if not exists attendance_actions_event_time_idx
   on attendance_actions(event_id, recorded_at asc);
 
--- One session is created for each event and Indian calendar date. The owner
--- opens/closes this session from the dashboard; the printed event QR stays
--- permanent and never needs to change.
-create table if not exists attendance_sessions (
-  id uuid primary key default gen_random_uuid(),
-  event_id uuid not null references events(id) on delete cascade,
-  attendance_date date not null,
-  is_open boolean not null default false,
-  opened_at timestamptz,
-  closes_at timestamptz,
-  daily_pin text,
+-- Passkeys store public keys only. Face ID/fingerprint data never leaves the
+-- attendee's phone; it is used by the device to sign a verification request.
+create table if not exists attendee_passkeys (
+  credential_id text primary key,
+  attendee_id uuid not null references attendees(id) on delete cascade,
+  public_key text not null,
+  counter bigint not null default 0,
+  transports text[],
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (event_id, attendance_date)
+  last_used_at timestamptz
 );
 
--- This is the permanent daily history. The unique constraint is the final
--- protection: one registered attendee can have only one record per event/day.
-create table if not exists attendance_records (
+create index if not exists attendee_passkeys_attendee_idx
+  on attendee_passkeys(attendee_id);
+
+create table if not exists webauthn_challenges (
   id uuid primary key default gen_random_uuid(),
   attendee_id uuid not null references attendees(id) on delete cascade,
-  event_id uuid not null references events(id) on delete cascade,
-  session_id uuid references attendance_sessions(id) on delete set null,
-  attendance_date date not null,
-  checked_in_at timestamptz not null default now(),
-  source text not null check (source in ('event_qr', 'owner_qr', 'manual')),
-  note text,
+  ceremony text not null check (ceremony in ('registration', 'authentication')),
+  challenge text not null,
+  expires_at timestamptz not null,
   created_at timestamptz not null default now(),
-  unique (attendee_id, event_id, attendance_date)
+  unique (attendee_id, ceremony)
 );
-
-create index if not exists attendance_sessions_event_date_idx
-  on attendance_sessions(event_id, attendance_date desc);
-create index if not exists attendance_records_event_date_idx
-  on attendance_records(event_id, attendance_date desc);
-create index if not exists attendance_records_attendee_date_idx
-  on attendance_records(attendee_id, attendance_date desc);
 
 
 -- Browser clients never query these tables directly. All database access goes
@@ -115,8 +111,8 @@ alter table events enable row level security;
 alter table attendees enable row level security;
 alter table attendance_scans enable row level security;
 alter table attendance_actions enable row level security;
-alter table attendance_sessions enable row level security;
-alter table attendance_records enable row level security;
+alter table attendee_passkeys enable row level security;
+alter table webauthn_challenges enable row level security;
 
 -- The photo bucket is intentionally public so dashboard/pass images can render.
 insert into storage.buckets (id, name, public)

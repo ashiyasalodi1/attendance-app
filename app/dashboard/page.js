@@ -18,12 +18,8 @@ export default function DashboardPage() {
   const [notice, setNotice] = useState("");
   const [deletingId, setDeletingId] = useState(null);
   const [manualSavingId, setManualSavingId] = useState(null);
-  const [todaySession, setTodaySession] = useState(null);
-  const [sessionSaving, setSessionSaving] = useState(false);
-  const [sessionMinutes, setSessionMinutes] = useState("60");
-  const [sessionPin, setSessionPin] = useState("");
-  const [reportFrom, setReportFrom] = useState("");
-  const [reportTo, setReportTo] = useState("");
+  const [securitySaving, setSecuritySaving] = useState(false);
+  const [securitySettings, setSecuritySettings] = useState({ latitude: "", longitude: "", radius: "150", checkInStart: "", checkInEnd: "", checkOutStart: "", checkOutEnd: "" });
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -139,7 +135,6 @@ export default function DashboardPage() {
     setStatusFilter("all");
 
     loadAttendees(true);
-    loadTodaySession().catch((err) => setError(err.message));
 
     const interval = setInterval(async () => {
       await loadAttendees(false);
@@ -157,10 +152,17 @@ export default function DashboardPage() {
   }, [selectedEventId]);
 
   useEffect(() => {
-    const today = indiaToday();
-    setReportFrom(today);
-    setReportTo(today);
-  }, []);
+    if (!selectedEvent) return;
+    setSecuritySettings({
+      latitude: selectedEvent.venue_latitude ?? "",
+      longitude: selectedEvent.venue_longitude ?? "",
+      radius: selectedEvent.venue_radius_meters ?? "150",
+      checkInStart: selectedEvent.check_in_start_time?.slice(0, 5) || "",
+      checkInEnd: selectedEvent.check_in_end_time?.slice(0, 5) || "",
+      checkOutStart: selectedEvent.check_out_start_time?.slice(0, 5) || "",
+      checkOutEnd: selectedEvent.check_out_end_time?.slice(0, 5) || "",
+    });
+  }, [selectedEventId]);
 
   async function createEvent(e) {
     e.preventDefault();
@@ -348,28 +350,6 @@ export default function DashboardPage() {
     } finally {
       setManualSavingId(null);
     }
-  }
-
-  function indiaToday() {
-    const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Asia/Kolkata",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).formatToParts(new Date());
-    const get = (type) => parts.find((part) => part.type === type)?.value;
-    return `${get("year")}-${get("month")}-${get("day")}`;
-  }
-
-  async function loadTodaySession() {
-    if (!selectedEventId) return;
-    const response = await fetch(
-      `/api/attendance-session?event_id=${encodeURIComponent(selectedEventId)}&time=${Date.now()}`,
-      { cache: "no-store" }
-    );
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Could not load today's check-in session.");
-    setTodaySession(data.session || null);
   }
 
   function openEditModal(event) {
@@ -586,48 +566,6 @@ export default function DashboardPage() {
       return matchesStatus && (!query || searchableText.includes(query));
     });
   }, [attendees, searchQuery, statusFilter]);
-
-  function downloadDailyReport() {
-    if (!selectedEventId || !reportFrom || !reportTo) {
-      setError("Choose From Date and To Date for the daily attendance report.");
-      return;
-    }
-    if (reportFrom > reportTo) {
-      setError("From Date cannot be after To Date.");
-      return;
-    }
-    window.location.href =
-      `/api/attendance-records/export?event_id=${encodeURIComponent(selectedEventId)}` +
-      `&from_date=${encodeURIComponent(reportFrom)}` +
-      `&to_date=${encodeURIComponent(reportTo)}`;
-  }
-
-  async function updateTodaySession(action) {
-    if (!selectedEventId) return;
-    setError("");
-    setSessionSaving(true);
-    try {
-      const response = await fetch("/api/attendance-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          event_id: selectedEventId,
-          action,
-          duration_minutes: Number(sessionMinutes),
-          daily_pin: sessionPin,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not update today's session.");
-      setTodaySession(data.session || null);
-      setNotice(data.message);
-      setTimeout(() => setNotice(""), 3000);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSessionSaving(false);
-    }
-  }
 
   return (
     <main className="dashboard-page">
@@ -985,71 +923,22 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div
-              style={{
-                margin: "16px 0",
-                padding: 16,
-                border: "1px solid #334255",
-                borderRadius: 10,
-                display: "flex",
-                gap: 12,
-                alignItems: "end",
-                flexWrap: "wrap",
-              }}
-            >
-              <div style={{ minWidth: 210 }}>
-                <strong style={{ color: todaySession?.is_open ? "#42d77d" : "#ff6b6b" }}>
-                  {todaySession?.is_open ? "Today's check-in is OPEN" : "Today's check-in is CLOSED"}
-                </strong>
-                <div style={{ fontSize: 12, color: "#9aa0b4", marginTop: 5 }}>
-                  {todaySession?.is_open && todaySession.closes_at
-                    ? `Closes at ${new Date(todaySession.closes_at).toLocaleTimeString()}`
-                    : "Open this only when attendance should be accepted."}
-                </div>
+            <div style={{ margin: "16px 0", padding: 16, border: "1px solid #334255", borderRadius: 10 }}>
+              <strong>Automatic venue &amp; attendance security</strong>
+              <p style={{ fontSize: 12, color: "#9aa0b4", margin: "6px 0 14px" }}>Save once. The permanent QR then accepts only users inside this GPS radius, during these India-time windows, after Face ID/Fingerprint confirmation.</p>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
+                <label style={{ fontSize: 12 }}>Venue latitude<input value={securitySettings.latitude} onChange={(e) => setSecuritySettings((current) => ({ ...current, latitude: e.target.value }))} style={{ display: "block", marginTop: 5, width: 150 }} /></label>
+                <label style={{ fontSize: 12 }}>Venue longitude<input value={securitySettings.longitude} onChange={(e) => setSecuritySettings((current) => ({ ...current, longitude: e.target.value }))} style={{ display: "block", marginTop: 5, width: 150 }} /></label>
+                <button type="button" className="view-btn" onClick={useCurrentVenueLocation}>Use my current venue location</button>
+                <label style={{ fontSize: 12 }}>GPS radius (meters)<input type="number" min="25" max="2000" value={securitySettings.radius} onChange={(e) => setSecuritySettings((current) => ({ ...current, radius: e.target.value }))} style={{ display: "block", marginTop: 5, width: 115 }} /></label>
               </div>
-
-              {!todaySession?.is_open && (
-                <>
-                  <label style={{ fontSize: 12 }}>
-                    Window minutes
-                    <input type="number" min="1" max="720" value={sessionMinutes} onChange={(e) => setSessionMinutes(e.target.value)} style={{ display: "block", marginTop: 5, width: 110 }} />
-                  </label>
-                  <label style={{ fontSize: 12 }}>
-                    Optional daily PIN
-                    <input inputMode="numeric" maxLength="8" value={sessionPin} onChange={(e) => setSessionPin(e.target.value.replace(/\D/g, ""))} placeholder="e.g. 4821" style={{ display: "block", marginTop: 5, width: 130 }} />
-                  </label>
-                  <button className="report-button present-report" type="button" disabled={sessionSaving} onClick={() => updateTodaySession("open")}>
-                    {sessionSaving ? "Opening..." : "Open Today's Check-in"}
-                  </button>
-                </>
-              )}
-
-              {todaySession?.is_open && (
-                <button className="report-button absent-report" type="button" disabled={sessionSaving} onClick={() => updateTodaySession("close")}>
-                  {sessionSaving ? "Closing..." : "Close Check-in"}
-                </button>
-              )}
-            </div>
-
-            <div
-              style={{
-                margin: "16px 0",
-                padding: 16,
-                border: "1px solid #334255",
-                borderRadius: 10,
-                display: "flex",
-                gap: 10,
-                alignItems: "end",
-                flexWrap: "wrap",
-              }}
-            >
-              <div style={{ minWidth: 185 }}>
-                <strong>Daily attendance report</strong>
-                <div style={{ fontSize: 12, color: "#9aa0b4", marginTop: 5 }}>Download date-wise attendance history.</div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end", marginTop: 12 }}>
+                <label style={{ fontSize: 12 }}>Check-in starts<input type="time" value={securitySettings.checkInStart} onChange={(e) => setSecuritySettings((current) => ({ ...current, checkInStart: e.target.value }))} style={{ display: "block", marginTop: 5 }} /></label>
+                <label style={{ fontSize: 12 }}>Check-in ends<input type="time" value={securitySettings.checkInEnd} onChange={(e) => setSecuritySettings((current) => ({ ...current, checkInEnd: e.target.value }))} style={{ display: "block", marginTop: 5 }} /></label>
+                <label style={{ fontSize: 12 }}>Check-out starts<input type="time" value={securitySettings.checkOutStart} onChange={(e) => setSecuritySettings((current) => ({ ...current, checkOutStart: e.target.value }))} style={{ display: "block", marginTop: 5 }} /></label>
+                <label style={{ fontSize: 12 }}>Check-out ends<input type="time" value={securitySettings.checkOutEnd} onChange={(e) => setSecuritySettings((current) => ({ ...current, checkOutEnd: e.target.value }))} style={{ display: "block", marginTop: 5 }} /></label>
+                <button className="report-button present-report" type="button" disabled={securitySaving} onClick={saveSecuritySettings}>{securitySaving ? "Saving..." : "Save automatic security"}</button>
               </div>
-              <label style={{ fontSize: 12 }}>From Date<input type="date" value={reportFrom} onChange={(e) => setReportFrom(e.target.value)} style={{ display: "block", marginTop: 5 }} /></label>
-              <label style={{ fontSize: 12 }}>To Date<input type="date" value={reportTo} onChange={(e) => setReportTo(e.target.value)} style={{ display: "block", marginTop: 5 }} /></label>
-              <button className="report-button present-report" type="button" onClick={downloadDailyReport}>Download Daily CSV</button>
             </div>
 
             {/* REGISTRATION LINK */}
@@ -1713,5 +1602,48 @@ export default function DashboardPage() {
         </div>
       )}
     </main>
-  );
-}
+      );
+  }
+
+  function useCurrentVenueLocation() {
+    if (!navigator.geolocation) {
+      setError("This browser cannot read location. Enter venue latitude and longitude manually.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => setSecuritySettings((current) => ({ ...current, latitude: position.coords.latitude.toFixed(6), longitude: position.coords.longitude.toFixed(6) })),
+      () => setError("Could not read location. Allow location permission and try again."),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }
+
+  async function saveSecuritySettings() {
+    if (!selectedEventId) return;
+    setError("");
+    setSecuritySaving(true);
+    try {
+      const response = await fetch("/api/events/security", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event_id: selectedEventId,
+          venue_latitude: securitySettings.latitude,
+          venue_longitude: securitySettings.longitude,
+          venue_radius_meters: Number(securitySettings.radius),
+          check_in_start_time: securitySettings.checkInStart,
+          check_in_end_time: securitySettings.checkInEnd,
+          check_out_start_time: securitySettings.checkOutStart,
+          check_out_end_time: securitySettings.checkOutEnd,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not save security settings.");
+      setEvents((current) => current.map((event) => event.id === data.event.id ? { ...event, ...data.event } : event));
+      setNotice("Venue, GPS radius and automatic attendance times saved.");
+      setTimeout(() => setNotice(""), 3000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSecuritySaving(false);
+    }
+  }
