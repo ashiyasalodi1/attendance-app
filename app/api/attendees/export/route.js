@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
@@ -36,14 +37,14 @@ export async function GET(req) {
 
   if (!eventId) {
     return NextResponse.json(
-      { error: "Event is required" },
+      { error: "Event ID is required." },
       { status: 400 }
     );
   }
 
   if (status !== "present" && status !== "absent") {
     return NextResponse.json(
-      { error: "Status must be present or absent" },
+      { error: "Status must be present or absent." },
       { status: 400 }
     );
   }
@@ -62,31 +63,37 @@ export async function GET(req) {
     );
   }
 
-  const attendeeIds = (attendees || []).map((attendee) => attendee.id);
+  const attendeeIds = attendees.map((attendee) => attendee.id);
 
-  const { data: actions, error: actionsError } = attendeeIds.length
-    ? await supabase
-        .from("attendance_actions")
-        .select("attendee_id, action, recorded_at")
-        .in("attendee_id", attendeeIds)
-        .order("recorded_at", { ascending: true })
-    : { data: [], error: null };
+  let actions = [];
 
-  if (actionsError) {
-    return NextResponse.json(
-      { error: actionsError.message },
-      { status: 500 }
-    );
-  }
+  if (attendeeIds.length > 0) {
+    const { data, error } = await supabase
+      .from("attendance_actions")
+      .select("attendee_id, action, recorded_at")
+      .eq("event_id", eventId)
+      .in("attendee_id", attendeeIds)
+      .order("recorded_at", { ascending: true });
 
-  const actionsByAttendee = (actions || []).reduce((all, action) => {
-    if (!all[action.attendee_id]) {
-      all[action.attendee_id] = [];
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
     }
 
-    all[action.attendee_id].push(action);
-    return all;
-  }, {});
+    actions = data || [];
+  }
+
+  const actionsByAttendee = {};
+
+  for (const action of actions) {
+    if (!actionsByAttendee[action.attendee_id]) {
+      actionsByAttendee[action.attendee_id] = [];
+    }
+
+    actionsByAttendee[action.attendee_id].push(action);
+  }
 
   const rows = [
     [
@@ -99,30 +106,35 @@ export async function GET(req) {
       "First Check-In Time",
       "Latest Check-Out Time",
     ],
-
-    ...(attendees || []).map((attendee) => {
-      const attendeeActions = actionsByAttendee[attendee.id] || [];
-
-      const firstCheckIn = attendeeActions.find(
-        (action) => action.action === "check_in"
-      );
-
-      const latestCheckOut = attendeeActions
-        .filter((action) => action.action === "check_out")
-        .at(-1);
-
-      return [
-        attendee.name,
-        attendee.employee_code ? `'${attendee.employee_code}` : "",
-        attendee.whatsapp ? `'${attendee.whatsapp}` : "",
-        attendee.division,
-        attendee.status,
-        formatIndiaTime(attendee.created_at),
-        formatIndiaTime(firstCheckIn?.recorded_at),
-        formatIndiaTime(latestCheckOut?.recorded_at),
-      ];
-    }),
   ];
+
+  for (const attendee of attendees) {
+    const attendeeActions = actionsByAttendee[attendee.id] || [];
+
+    const firstCheckIn = attendeeActions.find(
+      (action) => action.action === "check_in"
+    );
+
+    const checkOutActions = attendeeActions.filter(
+      (action) => action.action === "check_out"
+    );
+
+    const latestCheckOut =
+      checkOutActions.length > 0
+        ? checkOutActions[checkOutActions.length - 1]
+        : null;
+
+    rows.push([
+      attendee.name || "",
+      attendee.employee_code ? `'${attendee.employee_code}` : "",
+      attendee.whatsapp ? `'${attendee.whatsapp}` : "",
+      attendee.division || "",
+      attendee.status || "",
+      formatIndiaTime(attendee.created_at),
+      formatIndiaTime(firstCheckIn?.recorded_at),
+      formatIndiaTime(latestCheckOut?.recorded_at),
+    ]);
+  }
 
   const csv =
     "\uFEFF" +
@@ -132,7 +144,9 @@ export async function GET(req) {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${status}-attendees.csv"`,
-      "Cache-Control": "no-store",
+      "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+      Pragma: "no-cache",
+      Expires: "0",
     },
   });
 }
