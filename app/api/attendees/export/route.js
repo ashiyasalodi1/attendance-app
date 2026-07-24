@@ -10,12 +10,22 @@ const supabase = createClient(
 
 function csvValue(value) {
   let text = value === null || value === undefined ? "" : String(value);
-
-  if (/^[=+\-@]/.test(text)) {
-    text = `'${text}`;
-  }
-
+  if (/^[=+\-@]/.test(text)) text = `'${text}`;
   return `"${text.replace(/"/g, '""')}"`;
+}
+
+function formatIndiaTime(value) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  }).format(new Date(value));
 }
 
 function formatDuration(milliseconds) {
@@ -41,15 +51,9 @@ export async function GET(req) {
   const status = searchParams.get("status");
   const eventId = searchParams.get("event_id");
 
-  if (!eventId) {
-    return NextResponse.json({ error: "Event is required" }, { status: 400 });
-  }
-
+  if (!eventId) return NextResponse.json({ error: "Event is required" }, { status: 400 });
   if (status !== "present" && status !== "absent") {
-    return NextResponse.json(
-      { error: "Status must be present or absent" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Status must be present or absent" }, { status: 400 });
   }
 
   const { data, error } = await supabase
@@ -58,19 +62,17 @@ export async function GET(req) {
     .eq("event_id", eventId)
     .eq("status", status)
     .order("created_at", { ascending: false });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const attendeeIds = (data || []).map((attendee) => attendee.id);
   const { data: actions, error: actionsError } = attendeeIds.length
-    ? await supabase.from("attendance_actions").select("attendee_id, action, source, recorded_at").in("attendee_id", attendeeIds).order("recorded_at", { ascending: true })
+    ? await supabase
+        .from("attendance_actions")
+        .select("attendee_id, action, source, recorded_at")
+        .in("attendee_id", attendeeIds)
+        .order("recorded_at", { ascending: true })
     : { data: [], error: null };
-
-  if (actionsError) {
-    return NextResponse.json({ error: actionsError.message }, { status: 500 });
-  }
+  if (actionsError) return NextResponse.json({ error: actionsError.message }, { status: 500 });
 
   const actionsByAttendee = (actions || []).reduce((all, action) => {
     if (!all[action.attendee_id]) all[action.attendee_id] = [];
@@ -82,6 +84,7 @@ export async function GET(req) {
     ? await supabase.from("attendance_scans").select("attendee_id, checked_at").in("attendee_id", attendeeIds).order("checked_at", { ascending: true })
     : { data: [], error: null };
   if (scansError) return NextResponse.json({ error: scansError.message }, { status: 500 });
+
   const scansByAttendee = (scans || []).reduce((all, scan) => {
     if (!all[scan.attendee_id]) all[scan.attendee_id] = [];
     all[scan.attendee_id].push(scan.checked_at);
@@ -89,42 +92,37 @@ export async function GET(req) {
   }, {});
 
   const rows = [
-    ["Name", "Employee Code", "WhatsApp Number", "Division", "Status", "Registration Time", "First Check-In Time", "Latest Check-Out Time", "Action Count", "Completed Attendance Time", "Currently Checked In", "Confirmation Scan Count", "First Confirmation Scan", "Last Confirmation Scan", "All Confirmation Scan Times"],
+    ["Name", "Employee Code", "WhatsApp Number", "Division", "Status", "Registration Time (India)", "Check-In 1 (India)", "Check-Out 1 (India)", "Check-In 2 (India)", "Check-Out 2 (India)", "Action Count", "Completed Attendance Time", "Currently Checked In", "Confirmation Scan Count", "First Confirmation Scan (India)", "Last Confirmation Scan (India)", "All Confirmation Scan Times (India)"],
     ...(data || []).map((attendee) => {
       const attendeeActions = actionsByAttendee[attendee.id] || [];
-      const firstCheckIn = attendeeActions.find((item) => item.action === "check_in");
-      const latestCheckOut = attendeeActions.filter((item) => item.action === "check_out").at(-1);
+      const checkIns = attendeeActions.filter((item) => item.action === "check_in");
+      const checkOuts = attendeeActions.filter((item) => item.action === "check_out");
       const summary = actionSummary(attendeeActions);
       const attendeeScans = scansByAttendee[attendee.id] || [];
+
       return [
-      attendee.name,
-      attendee.employee_code ? `'${attendee.employee_code}` : "",
-      attendee.whatsapp ? `'${attendee.whatsapp}` : "",
-      attendee.division,
-      attendee.status,
-      attendee.created_at
-        ? new Date(attendee.created_at).toLocaleString()
-        : "",
-      firstCheckIn
-        ? new Date(firstCheckIn.recorded_at).toLocaleString()
-        : "",
-      latestCheckOut
-        ? new Date(latestCheckOut.recorded_at).toLocaleString()
-        : "",
-      attendeeActions.length,
-      summary.total,
-      summary.open ? "Yes" : "No",
-      attendeeScans.length,
-      attendeeScans[0] ? new Date(attendeeScans[0]).toLocaleString() : "",
-      attendeeScans.at(-1) ? new Date(attendeeScans.at(-1)).toLocaleString() : "",
-      attendeeScans.map((time) => new Date(time).toLocaleString()).join(" | "),
-    ];
+        attendee.name,
+        attendee.employee_code ? `'${attendee.employee_code}` : "",
+        attendee.whatsapp ? `'${attendee.whatsapp}` : "",
+        attendee.division,
+        attendee.status,
+        formatIndiaTime(attendee.created_at),
+        formatIndiaTime(checkIns[0]?.recorded_at || attendee.attended_at),
+        formatIndiaTime(checkOuts[0]?.recorded_at),
+        formatIndiaTime(checkIns[1]?.recorded_at),
+        formatIndiaTime(checkOuts[1]?.recorded_at),
+        attendeeActions.length,
+        summary.total,
+        summary.open ? "Yes" : "No",
+        attendeeScans.length,
+        formatIndiaTime(attendeeScans[0]),
+        formatIndiaTime(attendeeScans.at(-1)),
+        attendeeScans.map(formatIndiaTime).join(" | "),
+      ];
     }),
   ];
 
-  // UTF-8 BOM makes Excel display text correctly instead of mojibake characters.
   const csv = "\uFEFF" + rows.map((row) => row.map(csvValue).join(",")).join("\n");
-
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
